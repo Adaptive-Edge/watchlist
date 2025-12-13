@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Loader2, Sparkles, ListVideo, History, Settings } from "lucide-react";
+import { Loader2, Sparkles, ListVideo, History, Heart } from "lucide-react";
 import { useUser, UserProvider } from "@/hooks/use-user";
 import { Onboarding } from "@/components/Onboarding";
 import { Recommendations } from "@/components/Recommendations";
 import { WatchlistView } from "@/components/WatchlistView";
 import { HistoryView } from "@/components/HistoryView";
+import { PreferencesView } from "@/components/PreferencesView";
 import { Button } from "@/components/ui/button";
 
-type Tab = "discover" | "watchlist" | "history";
+type Tab = "discover" | "watchlist" | "history" | "preferences";
 
 function HomeContent() {
   const { user, loading, createUser } = useUser();
@@ -55,12 +56,7 @@ function HomeContent() {
       {/* Header */}
       <header className="sticky top-0 z-10 glass border-b border-border/50">
         <div className="max-w-2xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-gradient">Watchlist</h1>
-            <Button variant="ghost" size="icon" className="text-muted-foreground">
-              <Settings className="w-5 h-5" />
-            </Button>
-          </div>
+          <h1 className="text-xl font-bold text-gradient">Watchlist</h1>
         </div>
       </header>
 
@@ -69,6 +65,7 @@ function HomeContent() {
         {activeTab === "discover" && <Recommendations />}
         {activeTab === "watchlist" && <WatchlistView />}
         {activeTab === "history" && <HistoryView />}
+        {activeTab === "preferences" && <PreferencesView />}
       </main>
 
       {/* Bottom Navigation */}
@@ -92,6 +89,12 @@ function HomeContent() {
               label="History"
               active={activeTab === "history"}
               onClick={() => setActiveTab("history")}
+            />
+            <NavButton
+              icon={<Heart className="w-5 h-5" />}
+              label="Favourites"
+              active={activeTab === "preferences"}
+              onClick={() => setActiveTab("preferences")}
             />
           </div>
         </div>
