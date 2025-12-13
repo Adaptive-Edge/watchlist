@@ -19,6 +19,8 @@ interface Recommendation {
   year: number;
   mediaType: "film" | "tv";
   reason: string;
+  imdbScore: number | null;
+  rottenTomatoesScore: number | null;
 }
 
 export async function generateRecommendations(
@@ -41,10 +43,16 @@ Always respond with valid JSON in this exact format:
       "title": "Title Name",
       "year": 2020,
       "mediaType": "film" or "tv",
-      "reason": "Brief explanation of why this matches their taste"
+      "reason": "Brief explanation of why this matches their taste",
+      "imdbScore": 8.5,
+      "rottenTomatoesScore": 92
     }
   ]
 }
+
+For scores:
+- imdbScore: IMDB rating out of 10 (e.g., 8.5). Use null if unknown.
+- rottenTomatoesScore: Rotten Tomatoes critic score as percentage (e.g., 92 for 92%). Use null if unknown.
 
 Provide 3-5 recommendations. Be specific about why each recommendation fits the user's profile.
 Focus on lesser-known gems alongside popular choices. Consider both what they love AND what they've disliked to refine suggestions.`,

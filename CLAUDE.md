@@ -1,14 +1,14 @@
 # Claude Code Instructions for Adaptive Edge
 
-## ⛔ MANDATORY: Run These Commands FIRST (Every Session)
+## ⛔ STOP - READ THIS BEFORE EVERY TASK
 
-Before doing ANYTHING else, run these commands and read the output:
-```bash
-# 1. See what's actually running
-ssh root@adaptiveedge.uk -i ~/.ssh/nathan_droplet_key "pm2 list"
-```
+You MUST complete these steps IN ORDER. Do not skip any step.
 
-**Do not proceed until you have run `pm2 list` and understood the current state.**
+1. Run `pm2 list` to check server state
+2. Make changes to SOURCE files only
+3. Run `npm run dev` and confirm it works locally
+4. Run `npm run build`
+5. Ask user "Ready to deploy?" - WAIT for approval
 
 ---
 

@@ -24,6 +24,8 @@ interface Recommendation {
   year: number;
   mediaType: "film" | "tv";
   reason: string;
+  imdbScore: number | null;
+  rottenTomatoesScore: number | null;
 }
 
 export function Recommendations() {
@@ -248,11 +250,30 @@ function RecommendationCard({
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-semibold truncate">{recommendation.title}</h3>
               <span className="text-sm text-muted-foreground shrink-0">
                 ({recommendation.year})
               </span>
+              {/* Scores */}
+              {(recommendation.imdbScore || recommendation.rottenTomatoesScore) && (
+                <div className="flex items-center gap-2 ml-auto shrink-0">
+                  {recommendation.imdbScore && (
+                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 font-medium">
+                      <span className="font-bold">IMDb</span> {recommendation.imdbScore.toFixed(1)}
+                    </span>
+                  )}
+                  {recommendation.rottenTomatoesScore && (
+                    <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium ${
+                      recommendation.rottenTomatoesScore >= 60
+                        ? "bg-red-500/20 text-red-400"
+                        : "bg-green-500/20 text-green-400"
+                    }`}>
+                      <span className="font-bold">RT</span> {recommendation.rottenTomatoesScore}%
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <p className="text-sm text-muted-foreground mt-1">{recommendation.reason}</p>
 
