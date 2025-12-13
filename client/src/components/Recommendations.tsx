@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useRef } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/hooks/use-user";
@@ -32,6 +32,7 @@ export function Recommendations() {
   const [request, setRequest] = useState("");
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [celebrating, setCelebrating] = useState<string | null>(null);
 
   const generateMutation = useMutation({
     mutationFn: async (userRequest?: string) => {
@@ -92,7 +93,18 @@ export function Recommendations() {
         year: rec.year,
         rating,
       });
-      setRecommendations((prev) => prev.filter((r) => r.title !== rec.title));
+
+      if (rating === "loved") {
+        // Trigger celebration animation
+        setCelebrating(rec.title);
+        // Wait for animation before removing
+        setTimeout(() => {
+          setRecommendations((prev) => prev.filter((r) => r.title !== rec.title));
+          setCelebrating(null);
+        }, 600);
+      } else {
+        setRecommendations((prev) => prev.filter((r) => r.title !== rec.title));
+      }
       queryClient.invalidateQueries({ queryKey: [`/api/users/${user.id}/history`] });
     } finally {
       setActionLoading(null);
@@ -164,6 +176,7 @@ export function Recommendations() {
                 key={rec.title}
                 recommendation={rec}
                 loading={actionLoading === rec.title}
+                celebrating={celebrating === rec.title}
                 onAddToWatchlist={() => handleAddToWatchlist(rec)}
                 onReject={() => handleReject(rec)}
                 onWatched={(rating) => handleWatched(rec, rating)}
@@ -189,6 +202,7 @@ export function Recommendations() {
 interface RecommendationCardProps {
   recommendation: Recommendation;
   loading: boolean;
+  celebrating: boolean;
   onAddToWatchlist: () => void;
   onReject: () => void;
   onWatched: (rating: "loved" | "ok" | "disliked") => void;
@@ -197,6 +211,7 @@ interface RecommendationCardProps {
 function RecommendationCard({
   recommendation,
   loading,
+  celebrating,
   onAddToWatchlist,
   onReject,
   onWatched,
@@ -204,8 +219,25 @@ function RecommendationCard({
   const [showWatchedOptions, setShowWatchedOptions] = useState(false);
 
   return (
-    <Card className="glass overflow-hidden">
-      <CardContent className="p-4">
+    <Card className={`glass overflow-hidden transition-all duration-500 ${celebrating ? "scale-[1.02] shadow-[0_0_30px_rgba(236,72,153,0.4)]" : ""}`}>
+      <CardContent className="p-4 relative overflow-visible">
+        {/* Celebration sparkles */}
+        {celebrating && (
+          <div className="absolute inset-0 pointer-events-none">
+            {[...Array(12)].map((_, i) => (
+              <span
+                key={i}
+                className="absolute w-2 h-2 rounded-full animate-sparkle"
+                style={{
+                  left: `${20 + Math.random() * 60}%`,
+                  top: `${20 + Math.random() * 60}%`,
+                  backgroundColor: ['#ec4899', '#f472b6', '#fbbf24', '#facc15', '#a855f7'][i % 5],
+                  animationDelay: `${i * 50}ms`,
+                }}
+              />
+            ))}
+          </div>
+        )}
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
             {recommendation.mediaType === "film" ? (
