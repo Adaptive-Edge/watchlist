@@ -118,12 +118,12 @@ function buildPrompt(profile: UserProfile, userRequest?: string): string {
     }
   }
 
-  // Favourite titles
+  // Favourite titles (use for context, but also exclude from suggestions)
   if (profile.favourites.length > 0) {
     const favList = profile.favourites
       .map((f) => `${f.title} (${f.mediaType})${f.reason ? ` - "${f.reason}"` : ""}`)
       .join("; ");
-    sections.push(`LOVED TITLES: ${favList}`);
+    sections.push(`LOVED TITLES (use as reference for taste, but DON'T recommend these - user has already seen them): ${favList}`);
   }
 
   // Watch history with ratings
