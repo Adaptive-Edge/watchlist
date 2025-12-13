@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useUser } from "@/hooks/use-user";
-import { Film, Tv, Heart, Loader2, Star, Smile, User, Video } from "lucide-react";
+import { Film, Tv, Heart, Loader2, Star, Smile, User, Video, Brain, Sparkles, RefreshCw, Lightbulb } from "lucide-react";
 
 interface FavouriteTitle {
   id: string;
@@ -33,6 +34,14 @@ interface DirectorPreference {
   name: string;
 }
 
+interface TasteInsights {
+  summary: string;
+  topThemes: string[];
+  watchingStyle: string;
+  moodProfile: string;
+  hiddenGem: string;
+}
+
 export function PreferencesView() {
   const { user } = useUser();
 
@@ -61,6 +70,12 @@ export function PreferencesView() {
     enabled: !!user,
   });
 
+  const { data: insights, isLoading: loadingInsights, refetch: refetchInsights, isFetching: fetchingInsights } = useQuery<TasteInsights>({
+    queryKey: [`/api/users/${user?.id}/insights`],
+    enabled: !!user && (favourites?.length ?? 0) > 0,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
   const isLoading = loadingFavourites || loadingGenres || loadingMoods || loadingActors || loadingDirectors;
 
   if (isLoading) {
@@ -76,6 +91,84 @@ export function PreferencesView() {
 
   return (
     <div className="space-y-6">
+      {/* AI Taste Insights */}
+      <Card className="glass border-[var(--ae-accent-cyan)]/30 overflow-hidden">
+        <CardContent className="p-0">
+          <div className="bg-gradient-to-r from-[var(--ae-accent-cyan)]/10 to-[var(--ae-accent-magenta)]/10 p-4 border-b border-border/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Brain className="w-5 h-5 text-[var(--ae-accent-cyan)]" />
+                <h2 className="text-lg font-semibold">Your Taste Profile</h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => refetchInsights()}
+                disabled={fetchingInsights}
+                className="text-muted-foreground"
+              >
+                <RefreshCw className={`w-4 h-4 ${fetchingInsights ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {loadingInsights || fetchingInsights ? (
+              <div className="flex items-center gap-3 py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-[var(--ae-accent-cyan)]" />
+                <span className="text-sm text-muted-foreground">Analyzing your taste...</span>
+              </div>
+            ) : insights ? (
+              <>
+                {/* Summary */}
+                <p className="text-sm leading-relaxed">{insights.summary}</p>
+
+                {/* Top Themes */}
+                {insights.topThemes.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {insights.topThemes.map((theme, i) => (
+                      <span
+                        key={i}
+                        className="px-2 py-1 text-xs rounded-full bg-[var(--ae-accent-cyan)]/20 text-[var(--ae-accent-cyan)] border border-[var(--ae-accent-cyan)]/30"
+                      >
+                        {theme}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Watching Style & Mood */}
+                <div className="grid gap-3 text-sm">
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
+                    <span className="text-muted-foreground">{insights.watchingStyle}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Smile className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                    <span className="text-muted-foreground">{insights.moodProfile}</span>
+                  </div>
+                </div>
+
+                {/* Hidden Gem Suggestion */}
+                <div className="p-3 rounded-lg bg-[var(--ae-accent-magenta)]/10 border border-[var(--ae-accent-magenta)]/20">
+                  <div className="flex items-start gap-2">
+                    <Lightbulb className="w-4 h-4 text-[var(--ae-accent-magenta)] mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-xs font-medium text-[var(--ae-accent-magenta)]">Hidden Gem</span>
+                      <p className="text-sm mt-1">{insights.hiddenGem}</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Add more favourites to unlock personalized insights about your taste.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Favourite Titles */}
       <section>
         <div className="flex items-center gap-2 mb-3">
@@ -188,15 +281,6 @@ export function PreferencesView() {
         </section>
       )}
 
-      {/* Info */}
-      <Card className="glass">
-        <CardContent className="p-4">
-          <p className="text-sm text-muted-foreground">
-            These preferences are used to personalize your recommendations.
-            The AI learns from your favourites and ratings to suggest titles you'll love.
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 }

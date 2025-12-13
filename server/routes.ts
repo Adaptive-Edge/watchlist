@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { storage } from "./storage";
-import { generateRecommendations, parseNaturalLanguageRequest } from "./ai";
+import { generateRecommendations, parseNaturalLanguageRequest, generateTasteInsights } from "./ai";
 
 export function registerRoutes(app: Express) {
   // === User Management ===
@@ -382,6 +382,31 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Error parsing request:", error);
       res.status(500).json({ error: "Failed to parse request" });
+    }
+  });
+
+  // Generate taste insights
+  app.get("/api/users/:userId/insights", async (req, res) => {
+    try {
+      const profile = await storage.getUserProfile(req.params.userId);
+      if (!profile.user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const insights = await generateTasteInsights({
+        genres: profile.genres,
+        actors: profile.actors,
+        directors: profile.directors,
+        moods: profile.moods,
+        favourites: profile.favourites,
+        history: profile.history,
+        rejected: profile.rejected,
+      });
+
+      res.json(insights);
+    } catch (error) {
+      console.error("Error generating insights:", error);
+      res.status(500).json({ error: "Failed to generate insights" });
     }
   });
 

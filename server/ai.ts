@@ -200,3 +200,84 @@ Respond with JSON:
 
   return JSON.parse(content);
 }
+
+export interface TasteInsights {
+  summary: string;
+  topThemes: string[];
+  watchingStyle: string;
+  moodProfile: string;
+  hiddenGem: string;
+}
+
+export async function generateTasteInsights(profile: UserProfile): Promise<TasteInsights> {
+  const profileSummary = buildInsightsPrompt(profile);
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `You are analyzing a user's film and TV taste profile. Based on their favourites, watch history, and preferences, generate insights about what they enjoy.
+
+Respond with JSON in this exact format:
+{
+  "summary": "A 2-3 sentence personalized summary of their taste (speak directly to them using 'you')",
+  "topThemes": ["theme1", "theme2", "theme3"],
+  "watchingStyle": "One sentence describing their watching habits (e.g., 'You gravitate towards complex character studies' or 'You enjoy binge-worthy series with twists')",
+  "moodProfile": "One sentence about the emotional experiences they seek (e.g., 'You like to be intellectually challenged' or 'You prefer feel-good escapism')",
+  "hiddenGem": "Based on their taste, suggest one lesser-known title they might love with a brief reason"
+}
+
+Be specific and insightful, not generic. Reference actual titles from their profile when relevant.`,
+      },
+      {
+        role: "user",
+        content: profileSummary,
+      },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.7,
+  });
+
+  const content = response.choices[0].message.content;
+  if (!content) {
+    throw new Error("No response from AI");
+  }
+
+  return JSON.parse(content);
+}
+
+function buildInsightsPrompt(profile: UserProfile): string {
+  const sections: string[] = [];
+
+  if (profile.favourites.length > 0) {
+    sections.push(`FAVOURITE TITLES: ${profile.favourites.map(f => f.title).join(", ")}`);
+  }
+
+  const likedGenres = profile.genres.filter(g => g.rating >= 4).map(g => g.genre);
+  const dislikedGenres = profile.genres.filter(g => g.rating <= 2).map(g => g.genre);
+  if (likedGenres.length > 0) {
+    sections.push(`LIKED GENRES: ${likedGenres.join(", ")}`);
+  }
+  if (dislikedGenres.length > 0) {
+    sections.push(`DISLIKED GENRES: ${dislikedGenres.join(", ")}`);
+  }
+
+  const likedMoods = profile.moods.filter(m => m.rating >= 4).map(m => m.mood);
+  if (likedMoods.length > 0) {
+    sections.push(`PREFERRED MOODS: ${likedMoods.join(", ")}`);
+  }
+
+  const lovedHistory = profile.history.filter(h => h.rating === "loved");
+  const dislikedHistory = profile.history.filter(h => h.rating === "disliked");
+  if (lovedHistory.length > 0) {
+    sections.push(`RECENTLY LOVED: ${lovedHistory.map(h => h.title).join(", ")}`);
+  }
+  if (dislikedHistory.length > 0) {
+    sections.push(`RECENTLY DISLIKED: ${dislikedHistory.map(h => h.title).join(", ")}`);
+  }
+
+  sections.push(`STATS: ${profile.favourites.length} favourites, ${profile.history.length} watched, ${profile.rejected.length} rejected`);
+
+  return sections.join("\n");
+}
