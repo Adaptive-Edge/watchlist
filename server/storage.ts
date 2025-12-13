@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import {
   users,
   genrePreferences,
@@ -36,9 +37,10 @@ import {
 export const storage = {
   // Users
   async createUser(): Promise<User> {
-    const [user] = await db.insert(users).values({}).$returningId();
-    const created = await db.select().from(users).where(eq(users.id, user.id));
-    return created[0];
+    const id = randomUUID();
+    await db.insert(users).values({ id });
+    const [created] = await db.select().from(users).where(eq(users.id, id));
+    return created;
   },
 
   async getUser(id: string): Promise<User | undefined> {
@@ -70,8 +72,9 @@ export const storage = {
       return { ...existing, rating: data.rating };
     }
 
-    const [result] = await db.insert(genrePreferences).values(data).$returningId();
-    const [created] = await db.select().from(genrePreferences).where(eq(genrePreferences.id, result.id));
+    const id = randomUUID();
+    await db.insert(genrePreferences).values({ ...data, id });
+    const [created] = await db.select().from(genrePreferences).where(eq(genrePreferences.id, id));
     return created;
   },
 
@@ -81,8 +84,9 @@ export const storage = {
   },
 
   async addActorPreference(data: InsertActorPreference): Promise<ActorPreference> {
-    const [result] = await db.insert(actorPreferences).values(data).$returningId();
-    const [created] = await db.select().from(actorPreferences).where(eq(actorPreferences.id, result.id));
+    const id = randomUUID();
+    await db.insert(actorPreferences).values({ ...data, id });
+    const [created] = await db.select().from(actorPreferences).where(eq(actorPreferences.id, id));
     return created;
   },
 
@@ -96,8 +100,9 @@ export const storage = {
   },
 
   async addDirectorPreference(data: InsertDirectorPreference): Promise<DirectorPreference> {
-    const [result] = await db.insert(directorPreferences).values(data).$returningId();
-    const [created] = await db.select().from(directorPreferences).where(eq(directorPreferences.id, result.id));
+    const id = randomUUID();
+    await db.insert(directorPreferences).values({ ...data, id });
+    const [created] = await db.select().from(directorPreferences).where(eq(directorPreferences.id, id));
     return created;
   },
 
@@ -124,8 +129,9 @@ export const storage = {
       return { ...existing, rating: data.rating };
     }
 
-    const [result] = await db.insert(moodPreferences).values(data).$returningId();
-    const [created] = await db.select().from(moodPreferences).where(eq(moodPreferences.id, result.id));
+    const id = randomUUID();
+    await db.insert(moodPreferences).values({ ...data, id });
+    const [created] = await db.select().from(moodPreferences).where(eq(moodPreferences.id, id));
     return created;
   },
 
@@ -135,8 +141,9 @@ export const storage = {
   },
 
   async addFavouriteTitle(data: InsertFavouriteTitle): Promise<FavouriteTitle> {
-    const [result] = await db.insert(favouriteTitles).values(data).$returningId();
-    const [created] = await db.select().from(favouriteTitles).where(eq(favouriteTitles.id, result.id));
+    const id = randomUUID();
+    await db.insert(favouriteTitles).values({ ...data, id });
+    const [created] = await db.select().from(favouriteTitles).where(eq(favouriteTitles.id, id));
     return created;
   },
 
@@ -154,8 +161,9 @@ export const storage = {
   },
 
   async addToWatchHistory(data: InsertWatchHistoryItem): Promise<WatchHistoryItem> {
-    const [result] = await db.insert(watchHistory).values(data).$returningId();
-    const [created] = await db.select().from(watchHistory).where(eq(watchHistory.id, result.id));
+    const id = randomUUID();
+    await db.insert(watchHistory).values({ ...data, id });
+    const [created] = await db.select().from(watchHistory).where(eq(watchHistory.id, id));
     return created;
   },
 
@@ -169,8 +177,9 @@ export const storage = {
   },
 
   async addRejectedItem(data: InsertRejectedItem): Promise<RejectedItem> {
-    const [result] = await db.insert(rejectedItems).values(data).$returningId();
-    const [created] = await db.select().from(rejectedItems).where(eq(rejectedItems.id, result.id));
+    const id = randomUUID();
+    await db.insert(rejectedItems).values({ ...data, id });
+    const [created] = await db.select().from(rejectedItems).where(eq(rejectedItems.id, id));
     return created;
   },
 
@@ -184,8 +193,9 @@ export const storage = {
   },
 
   async addToWatchlist(data: InsertWatchlistItem): Promise<WatchlistItem> {
-    const [result] = await db.insert(watchlist).values(data).$returningId();
-    const [created] = await db.select().from(watchlist).where(eq(watchlist.id, result.id));
+    const id = randomUUID();
+    await db.insert(watchlist).values({ ...data, id });
+    const [created] = await db.select().from(watchlist).where(eq(watchlist.id, id));
     return created;
   },
 
@@ -207,8 +217,9 @@ export const storage = {
   },
 
   async logRecommendation(data: InsertRecommendationLogItem): Promise<RecommendationLogItem> {
-    const [result] = await db.insert(recommendationLog).values(data).$returningId();
-    const [created] = await db.select().from(recommendationLog).where(eq(recommendationLog.id, result.id));
+    const id = randomUUID();
+    await db.insert(recommendationLog).values({ ...data, id });
+    const [created] = await db.select().from(recommendationLog).where(eq(recommendationLog.id, id));
     return created;
   },
 
