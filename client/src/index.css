@@ -1,0 +1,167 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* OKLCH Color Palette - Adaptive Edge */
+    --ae-purple-50: oklch(0.97 0.02 290);
+    --ae-purple-100: oklch(0.93 0.04 290);
+    --ae-purple-200: oklch(0.85 0.08 290);
+    --ae-purple-300: oklch(0.75 0.12 290);
+    --ae-purple-400: oklch(0.65 0.16 290);
+    --ae-purple-500: oklch(0.55 0.20 290);
+    --ae-purple-600: oklch(0.45 0.20 290);
+    --ae-purple-700: oklch(0.35 0.18 290);
+    --ae-purple-800: oklch(0.28 0.14 290);
+    --ae-purple-900: oklch(0.20 0.10 290);
+    --ae-purple-950: oklch(0.14 0.08 290);
+
+    --ae-accent-cyan: oklch(0.75 0.15 195);
+    --ae-accent-magenta: oklch(0.65 0.25 330);
+    --ae-accent-gold: oklch(0.80 0.15 85);
+
+    /* Shadcn semantic colors - mapped to Adaptive Edge */
+    --background: 270 30% 8%;
+    --foreground: 270 10% 95%;
+
+    --card: 270 25% 12%;
+    --card-foreground: 270 10% 95%;
+
+    --popover: 270 25% 14%;
+    --popover-foreground: 270 10% 95%;
+
+    --primary: 195 60% 55%;
+    --primary-foreground: 270 30% 8%;
+
+    --secondary: 270 20% 20%;
+    --secondary-foreground: 270 10% 95%;
+
+    --muted: 270 20% 18%;
+    --muted-foreground: 270 10% 60%;
+
+    --accent: 330 50% 50%;
+    --accent-foreground: 270 10% 95%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 270 10% 95%;
+
+    --border: 270 20% 25%;
+    --input: 270 20% 25%;
+    --ring: 195 60% 55%;
+
+    --radius: 0.75rem;
+  }
+
+  /* Force dark mode */
+  .dark, :root {
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Outfit", system-ui, sans-serif;
+    background: linear-gradient(135deg,
+      oklch(0.14 0.08 290) 0%,
+      oklch(0.20 0.10 290) 50%,
+      oklch(0.18 0.12 310) 100%
+    );
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    font-weight: 600;
+  }
+
+  code, pre, .font-mono {
+    font-family: "JetBrains Mono", monospace;
+  }
+}
+
+@layer components {
+  /* Glass effect for cards */
+  .glass {
+    background: linear-gradient(
+      135deg,
+      oklch(0.25 0.08 290 / 0.6) 0%,
+      oklch(0.20 0.06 290 / 0.4) 100%
+    );
+    backdrop-filter: blur(12px);
+    border: 1px solid oklch(0.40 0.10 290 / 0.3);
+    box-shadow:
+      0 8px 32px oklch(0 0 0 / 0.3),
+      inset 0 1px 0 oklch(1 0 0 / 0.05);
+  }
+}
+
+@layer utilities {
+  /* Glow effects */
+  .glow-cyan {
+    box-shadow: 0 0 20px oklch(0.75 0.15 195 / 0.3);
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 20px oklch(0.80 0.15 85 / 0.3);
+  }
+
+  /* Text gradient */
+  .text-gradient {
+    background: linear-gradient(135deg, var(--ae-accent-cyan), var(--ae-accent-magenta));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Animations */
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slideUp {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
