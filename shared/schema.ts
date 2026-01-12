@@ -4,6 +4,8 @@ import { sql, relations } from "drizzle-orm";
 // Users table
 export const users = mysqlTable("users", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
+  email: varchar("email", { length: 255 }).unique(),
+  passwordHash: varchar("password_hash", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
   onboardingComplete: int("onboarding_complete").default(0),
 });

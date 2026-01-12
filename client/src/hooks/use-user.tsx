@@ -3,6 +3,7 @@ import { apiRequest } from "@/lib/queryClient";
 
 interface User {
   id: string;
+  email: string | null;
   createdAt: string;
   onboardingComplete: number;
 }
@@ -10,46 +11,89 @@ interface User {
 interface UserContextType {
   user: User | null;
   loading: boolean;
-  createUser: () => Promise<void>;
+  isAuthenticated: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  linkAccount: (email: string, password: string) => Promise<void>;
+  startAnonymous: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
-
-const USER_ID_KEY = "watchlist_user_id";
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedUserId = localStorage.getItem(USER_ID_KEY);
-    if (storedUserId) {
-      loadUser(storedUserId);
-    } else {
-      setLoading(false);
-    }
+    checkSession();
   }, []);
 
-  async function loadUser(userId: string) {
+  async function checkSession() {
     try {
-      const userData = await apiRequest("GET", `/api/users/${userId}`);
-      setUser(userData);
+      const response = await apiRequest("GET", "/api/auth/me");
+      if (response.user) {
+        setUser(response.user);
+      }
     } catch (error) {
-      console.error("Failed to load user:", error);
-      localStorage.removeItem(USER_ID_KEY);
+      console.error("Failed to check session:", error);
     } finally {
       setLoading(false);
     }
   }
 
-  async function createUser() {
+  async function login(email: string, password: string) {
     try {
-      const newUser = await apiRequest("POST", "/api/users");
-      localStorage.setItem(USER_ID_KEY, newUser.id);
-      setUser(newUser);
+      const userData = await apiRequest("POST", "/api/auth/login", { email, password });
+      setUser(userData);
     } catch (error) {
-      console.error("Failed to create user:", error);
+      console.error("Login failed:", error);
+      throw error;
+    }
+  }
+
+  async function register(email: string, password: string) {
+    try {
+      const userData = await apiRequest("POST", "/api/auth/register", { email, password });
+      setUser(userData);
+    } catch (error) {
+      console.error("Registration failed:", error);
+      throw error;
+    }
+  }
+
+  async function logout() {
+    try {
+      await apiRequest("POST", "/api/auth/logout");
+      setUser(null);
+    } catch (error) {
+      console.error("Logout failed:", error);
+      throw error;
+    }
+  }
+
+  async function linkAccount(email: string, password: string) {
+    if (!user) throw new Error("No user to link");
+    try {
+      const userData = await apiRequest("POST", "/api/auth/link", {
+        userId: user.id,
+        email,
+        password,
+      });
+      setUser(userData);
+    } catch (error) {
+      console.error("Account linking failed:", error);
+      throw error;
+    }
+  }
+
+  async function startAnonymous() {
+    try {
+      const userData = await apiRequest("POST", "/api/auth/anonymous");
+      setUser(userData);
+    } catch (error) {
+      console.error("Failed to create anonymous session:", error);
       throw error;
     }
   }
@@ -65,8 +109,22 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const isAuthenticated = !!user?.email;
+
   return (
-    <UserContext.Provider value={{ user, loading, createUser, completeOnboarding }}>
+    <UserContext.Provider
+      value={{
+        user,
+        loading,
+        isAuthenticated,
+        login,
+        register,
+        logout,
+        linkAccount,
+        startAnonymous,
+        completeOnboarding,
+      }}
+    >
       {children}
     </UserContext.Provider>
   );
