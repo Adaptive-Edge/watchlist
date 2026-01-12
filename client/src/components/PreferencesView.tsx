@@ -98,7 +98,7 @@ export function PreferencesView() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Brain className="w-5 h-5 text-[var(--ae-accent-cyan)]" />
-                <h2 className="text-lg font-semibold">Your Taste Profile</h2>
+                <h2 className="text-lg font-bold">Your Taste Profile</h2>
               </div>
               <Button
                 variant="ghost"
