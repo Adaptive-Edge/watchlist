@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import bcrypt from "bcrypt";
 import {
   users,
   genrePreferences,
@@ -34,6 +35,8 @@ import {
   type InsertRecommendationLogItem,
 } from "@shared/schema";
 
+const SALT_ROUNDS = 10;
+
 export const storage = {
   // Users
   async createUser(): Promise<User> {
@@ -46,6 +49,38 @@ export const storage = {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
+  },
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+    return user;
+  },
+
+  async registerUser(email: string, password: string): Promise<User> {
+    const id = randomUUID();
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    await db.insert(users).values({
+      id,
+      email: email.toLowerCase(),
+      passwordHash
+    });
+    const [created] = await db.select().from(users).where(eq(users.id, id));
+    return created;
+  },
+
+  async verifyPassword(user: User, password: string): Promise<boolean> {
+    if (!user.passwordHash) return false;
+    return bcrypt.compare(password, user.passwordHash);
+  },
+
+  async linkEmailToUser(userId: string, email: string, password: string): Promise<User> {
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    await db.update(users).set({
+      email: email.toLowerCase(),
+      passwordHash
+    }).where(eq(users.id, userId));
+    const [updated] = await db.select().from(users).where(eq(users.id, userId));
+    return updated;
   },
 
   async completeOnboarding(userId: string): Promise<void> {
