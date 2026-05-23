@@ -37,6 +37,20 @@ function HomeContent() {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, [isTV]);
+
+  // When TV mode activates, focus first content element (with retry for async content)
+  useEffect(() => {
+    if (!isTV) return;
+    const attempt = (n = 0) => {
+      const el = document.querySelector<HTMLElement>(
+        '[data-tv-content] button:not([disabled]), [data-tv-content] [tabindex]:not([tabindex="-1"])'
+      );
+      if (el) { el.focus(); return; }
+      if (n < 15) setTimeout(() => attempt(n + 1), 100);
+    };
+    setTimeout(() => attempt(), 50);
+  }, [isTV]);
+
   const [railFocused, setRailFocused] = useState(false);
   const lastContentFocusRef = useRef<HTMLElement | null>(null);
   const activeRailItemRef = useRef<HTMLButtonElement | null>(null);
