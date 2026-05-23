@@ -37,6 +37,29 @@ function HomeContent() {
     { id: 'preferences' as Tab, icon: <Heart className="w-5 h-5" />, label: 'Favourites' },
   ];
 
+  const handleRailKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      const target =
+        lastContentFocusRef.current ??
+        document.querySelector<HTMLElement>('[data-tv-content] button, [data-tv-content] [tabindex]:not([tabindex="-1"])');
+      target?.focus();
+    }
+  };
+
+  const handleContentKeyDown = (e: React.KeyboardEvent) => {
+    if (!isTV) return;
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      activeRailItemRef.current?.focus();
+    }
+  };
+
+  const handleContentFocus = (e: React.FocusEvent) => {
+    if (!isTV) return;
+    lastContentFocusRef.current = e.target as HTMLElement;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
