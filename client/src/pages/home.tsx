@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Loader2, Sparkles, ListVideo, History, Heart, User, LogOut, Link, Zap } from "lucide-react";
 import { useUser, UserProvider } from "@/hooks/use-user";
 import { Onboarding } from "@/components/Onboarding";
@@ -23,6 +23,19 @@ function HomeContent() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register" | "link">("login");
+
+  const isTV = document.documentElement.classList.contains('tv');
+  const [railFocused, setRailFocused] = useState(false);
+  const lastContentFocusRef = useRef<HTMLElement | null>(null);
+  const activeRailItemRef = useRef<HTMLButtonElement | null>(null);
+
+  const navItems = [
+    { id: 'new-for-you' as Tab, icon: <Zap className="w-5 h-5" />, label: 'New For You' },
+    { id: 'discover' as Tab, icon: <Sparkles className="w-5 h-5" />, label: 'Discover' },
+    { id: 'watchlist' as Tab, icon: <ListVideo className="w-5 h-5" />, label: 'Watchlist' },
+    { id: 'history' as Tab, icon: <History className="w-5 h-5" />, label: 'History' },
+    { id: 'preferences' as Tab, icon: <Heart className="w-5 h-5" />, label: 'Favourites' },
+  ];
 
   if (loading) {
     return (
