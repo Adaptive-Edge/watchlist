@@ -192,3 +192,20 @@
     transform: scale(0) translateY(-40px);
   }
 }
+
+/* Google TV / Android TV — D-pad focus styles */
+@media (hover: none) and (pointer: coarse) {
+  /* On TV, pointer is none not coarse, but this catches remote-nav sessions */
+}
+
+/* Applied when running in a TV/leanback context via JS-added class */
+.tv *:focus-visible,
+*:focus-visible {
+  outline: 3px solid hsl(var(--ring)) !important;
+  outline-offset: 3px !important;
+  border-radius: var(--radius);
+}
+
+.tv *:focus:not(:focus-visible) {
+  outline: none !important;
+}
