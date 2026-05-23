@@ -118,101 +118,151 @@ function HomeContent() {
   }
 
   // Main app
+  const railNav = (
+    <nav
+      className={`tv-rail${railFocused ? ' rail-expanded' : ''}`}
+      onFocus={() => setRailFocused(true)}
+      onBlur={() => setRailFocused(false)}
+      onKeyDown={handleRailKeyDown}
+      aria-label="Main navigation"
+    >
+      {/* Wordmark */}
+      <div className="tv-rail-wordmark">
+        <Zap className="w-5 h-5 flex-shrink-0" />
+        <span>Watchlist</span>
+      </div>
+
+      {/* Nav items */}
+      {navItems.map((item) => {
+        const isActive = activeTab === item.id;
+        return (
+          <button
+            key={item.id}
+            ref={isActive ? activeRailItemRef : undefined}
+            className={`tv-rail-item${isActive ? ' rail-item-active' : ''}`}
+            onClick={() => {
+              setActiveTab(item.id);
+              // Return focus to content after selecting
+              setTimeout(() => {
+                const target =
+                  lastContentFocusRef.current ??
+                  document.querySelector<HTMLElement>('[data-tv-content] button, [data-tv-content] [tabindex]:not([tabindex="-1"])');
+                target?.focus();
+              }, 50);
+            }}
+          >
+            <span className="tv-rail-item-icon">{item.icon}</span>
+            <span className="tv-rail-item-label">{item.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+
   return (
-    <div className="min-h-screen pb-20">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-card/80 backdrop-blur-sm border-b border-border">
-        <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 lg:px-6 py-3 flex items-center justify-between">
-          <h1 className="font-display text-xl font-bold text-foreground">Watchlist</h1>
-          <div className="flex items-center gap-2">
-            {isAuthenticated ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={logout}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <LogOut className="w-5 h-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Sign out ({user.email})</p>
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <>
+    <div className={isTV ? 'tv-shell' : 'min-h-screen pb-20'}>
+      {isTV && railNav}
+
+      <div
+        className={isTV ? 'tv-content' : ''}
+        {...(isTV ? { 'data-tv-content': '' } : {})}
+        onKeyDown={isTV ? handleContentKeyDown : undefined}
+        onFocus={isTV ? handleContentFocus : undefined}
+      >
+        {/* Header — hidden on TV via CSS */}
+        <header className="sticky top-0 z-10 bg-card/80 backdrop-blur-sm border-b border-border">
+          <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 lg:px-6 py-3 flex items-center justify-between">
+            <h1 className="font-display text-xl font-bold text-foreground">Watchlist</h1>
+            <div className="flex items-center gap-2">
+              {isAuthenticated ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
-                      size="sm"
-                      onClick={() => openAuth("link")}
+                      size="icon"
+                      onClick={logout}
                       className="text-muted-foreground hover:text-foreground"
                     >
-                      <Link className="w-4 h-4 mr-1" />
-                      Save Account
+                      <LogOut className="w-5 h-5" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Link email to save your data</p>
+                    <p>Sign out ({user.email})</p>
                   </TooltipContent>
                 </Tooltip>
-              </>
-            )}
+              ) : (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openAuth("link")}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <Link className="w-4 h-4 mr-1" />
+                        Save Account
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Link email to save your data</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Content */}
-      <main className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 lg:px-6 py-6">
-        {activeTab === "new-for-you" && <NewForYou />}
-        {activeTab === "discover" && <Recommendations />}
-        {activeTab === "watchlist" && <WatchlistView />}
-        {activeTab === "history" && <HistoryView />}
-        {activeTab === "preferences" && <PreferencesView />}
-      </main>
+        {/* Content */}
+        <main className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 lg:px-6 py-6">
+          {activeTab === "new-for-you" && <NewForYou />}
+          {activeTab === "discover" && <Recommendations />}
+          {activeTab === "watchlist" && <WatchlistView />}
+          {activeTab === "history" && <HistoryView />}
+          {activeTab === "preferences" && <PreferencesView />}
+        </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-sm border-t border-border">
-        <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 lg:px-6">
-          <div className="flex justify-around py-2">
-            <NavButton
-              icon={<Zap className="w-5 h-5" />}
-              label="New"
-              active={activeTab === "new-for-you"}
-              onClick={() => setActiveTab("new-for-you")}
-            />
-            <NavButton
-              icon={<Sparkles className="w-5 h-5" />}
-              label="Discover"
-              active={activeTab === "discover"}
-              onClick={() => setActiveTab("discover")}
-            />
-            <NavButton
-              icon={<ListVideo className="w-5 h-5" />}
-              label="Watchlist"
-              active={activeTab === "watchlist"}
-              onClick={() => setActiveTab("watchlist")}
-            />
-            <NavButton
-              icon={<History className="w-5 h-5" />}
-              label="History"
-              active={activeTab === "history"}
-              onClick={() => setActiveTab("history")}
-            />
-            <NavButton
-              icon={<Heart className="w-5 h-5" />}
-              label="Favourites"
-              active={activeTab === "preferences"}
-              onClick={() => setActiveTab("preferences")}
-            />
+        {/* Bottom Navigation — hidden on TV via CSS */}
+        <nav className="bottom-nav fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-sm border-t border-border">
+          <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 lg:px-6">
+            <div className="flex justify-around py-2">
+              <NavButton
+                icon={<Zap className="w-5 h-5" />}
+                label="New"
+                active={activeTab === "new-for-you"}
+                onClick={() => setActiveTab("new-for-you")}
+              />
+              <NavButton
+                icon={<Sparkles className="w-5 h-5" />}
+                label="Discover"
+                active={activeTab === "discover"}
+                onClick={() => setActiveTab("discover")}
+              />
+              <NavButton
+                icon={<ListVideo className="w-5 h-5" />}
+                label="Watchlist"
+                active={activeTab === "watchlist"}
+                onClick={() => setActiveTab("watchlist")}
+              />
+              <NavButton
+                icon={<History className="w-5 h-5" />}
+                label="History"
+                active={activeTab === "history"}
+                onClick={() => setActiveTab("history")}
+              />
+              <NavButton
+                icon={<Heart className="w-5 h-5" />}
+                label="Favourites"
+                active={activeTab === "preferences"}
+                onClick={() => setActiveTab("preferences")}
+              />
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
 
-      <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} mode={authMode} />
+        <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} mode={authMode} />
+      </div>
     </div>
   );
 }
