@@ -27,7 +27,7 @@ public class MainActivity extends BridgeActivity {
         webView.postDelayed(() -> webView.evaluateJavascript(
             "(function() {" +
             "  document.documentElement.classList.add('tv');" +
-            "  var el = document.querySelector('button:not([disabled]), [tabindex]:not([tabindex=\"-1\"])');" +
+            "  var el = document.querySelector('[data-tv-content] button:not([disabled]), [data-tv-content] [tabindex]:not([tabindex=\"-1\"])');" +
             "  if (el) el.focus();" +
             "})()", null
         ), 2500);

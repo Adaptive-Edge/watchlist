@@ -49,14 +49,22 @@ function HomeContent() {
     { id: 'preferences' as Tab, icon: <Heart className="w-5 h-5" />, label: 'Favourites' },
   ];
 
+  const focusContent = (attempts = 0) => {
+    const target = document.querySelector<HTMLElement>(
+      '[data-tv-content] button:not([disabled]), [data-tv-content] [tabindex]:not([tabindex="-1"])'
+    );
+    if (target) {
+      target.focus();
+    } else if (attempts < 10) {
+      setTimeout(() => focusContent(attempts + 1), 100);
+    }
+  };
+
   const handleRailKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight') {
       e.preventDefault();
       e.nativeEvent.stopImmediatePropagation();
-      const target =
-        lastContentFocusRef.current ??
-        document.querySelector<HTMLElement>('[data-tv-content] button, [data-tv-content] [tabindex]:not([tabindex="-1"])');
-      target?.focus();
+      focusContent();
     }
   };
 
@@ -156,13 +164,8 @@ function HomeContent() {
             className={`tv-rail-item${isActive ? ' rail-item-active' : ''}`}
             onClick={() => {
               setActiveTab(item.id);
-              // Return focus to content after selecting
-              setTimeout(() => {
-                const target =
-                  lastContentFocusRef.current ??
-                  document.querySelector<HTMLElement>('[data-tv-content] button, [data-tv-content] [tabindex]:not([tabindex="-1"])');
-                target?.focus();
-              }, 50);
+              lastContentFocusRef.current = null;
+              setTimeout(() => focusContent(), 50);
             }}
           >
             <span className="tv-rail-item-icon">{item.icon}</span>
