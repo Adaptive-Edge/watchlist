@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Loader2, Sparkles, ListVideo, History, Heart, User, LogOut, Link, Zap } from "lucide-react";
 import { useUser, UserProvider } from "@/hooks/use-user";
 import { Onboarding } from "@/components/Onboarding";
@@ -24,7 +24,19 @@ function HomeContent() {
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register" | "link">("login");
 
-  const isTV = document.documentElement.classList.contains('tv');
+  const [isTV, setIsTV] = useState(() => document.documentElement.classList.contains('tv'));
+
+  useEffect(() => {
+    if (isTV) return;
+    const observer = new MutationObserver(() => {
+      if (document.documentElement.classList.contains('tv')) {
+        setIsTV(true);
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, [isTV]);
   const [railFocused, setRailFocused] = useState(false);
   const lastContentFocusRef = useRef<HTMLElement | null>(null);
   const activeRailItemRef = useRef<HTMLButtonElement | null>(null);
@@ -40,6 +52,7 @@ function HomeContent() {
   const handleRailKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight') {
       e.preventDefault();
+      e.nativeEvent.stopImmediatePropagation();
       const target =
         lastContentFocusRef.current ??
         document.querySelector<HTMLElement>('[data-tv-content] button, [data-tv-content] [tabindex]:not([tabindex="-1"])');
@@ -51,6 +64,7 @@ function HomeContent() {
     if (!isTV) return;
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
+      e.nativeEvent.stopImmediatePropagation();
       activeRailItemRef.current?.focus();
     }
   };

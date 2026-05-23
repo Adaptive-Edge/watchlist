@@ -221,6 +221,13 @@
   overflow: hidden;
 }
 
+.tv #root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Outer shell — fills the body */
 .tv .tv-shell {
   display: flex;
