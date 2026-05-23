@@ -211,3 +211,118 @@
 *:focus:not(:focus-visible) {
   outline: none;
 }
+
+/* ── TV sidebar rail ─────────────────────────────────────────── */
+
+/* Make body a flex row on TV so rail + content sit side by side */
+.tv body {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Outer shell — fills the body */
+.tv .tv-shell {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100vh;
+}
+
+/* Hide mobile-only chrome on TV */
+.tv header {
+  display: none;
+}
+.tv .bottom-nav {
+  display: none;
+}
+
+/* Rail — hidden on mobile, shown on TV */
+.tv-rail {
+  display: none;
+}
+
+.tv .tv-rail {
+  display: flex;
+  flex-direction: column;
+  width: 56px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: hsl(var(--card));
+  border-right: 1px solid hsl(var(--border));
+  height: 100vh;
+  transition: width 150ms ease;
+}
+
+.tv .tv-rail.rail-expanded {
+  width: 150px;
+}
+
+/* Rail wordmark — clips on narrow, visible when expanded */
+.tv-rail-wordmark {
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 16px 8px 12px;
+  color: hsl(var(--primary));
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Rail nav items */
+.tv-rail-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: hsl(var(--muted-foreground));
+  border-radius: var(--radius);
+  white-space: nowrap;
+  width: 100%;
+  text-align: left;
+  transition: background 120ms, color 120ms;
+  flex-shrink: 0;
+}
+
+.tv-rail-item:hover,
+.tv-rail-item:focus {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  outline: none;
+}
+
+.tv-rail-item.rail-item-active {
+  background: hsl(var(--primary) / 0.15);
+  color: hsl(var(--primary));
+}
+
+.tv-rail-item-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tv-rail-item-label {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+}
+
+/* Content area scrolls independently */
+.tv .tv-content {
+  flex: 1;
+  overflow-y: auto;
+  height: 100vh;
+  /* Remove bottom padding that was for mobile bottom nav */
+  padding-bottom: 0 !important;
+}
