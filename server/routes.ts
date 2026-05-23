@@ -1,6 +1,14 @@
 import type { Express } from "express";
 import { storage } from "./storage";
 import { generateRecommendations, parseNaturalLanguageRequest, generateTasteInsights } from "./ai";
+import {
+  runDailyNewReleases,
+  scoreNewReleasesForUser,
+  addTmdbRelease,
+  scoreGuardianPicksForUser,
+} from "./cron";
+import { fetchAndStoreGuardianArchive } from "./guardianArchive";
+import { searchTitle } from "./tmdb";
 
 export function registerRoutes(app: Express) {
   // === User Management ===
@@ -288,7 +296,7 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/users/:userId/watchlist", async (req, res) => {
     try {
-      const watchlist = await storage.getWatchlist(req.params.userId);
+      const watchlist = await storage.getEnrichedWatchlist(req.params.userId);
       res.json(watchlist);
     } catch (error) {
       console.error("Error fetching watchlist:", error);
@@ -355,8 +363,24 @@ export function registerRoutes(app: Express) {
         req.body.request
       );
 
+      // Enrich with TMDB posters + trailers
+      const enriched = await Promise.all(
+        recommendations.map(async (rec) => {
+          try {
+            const tmdb = await searchTitle(rec.title, rec.year, rec.mediaType);
+            if (tmdb) {
+              rec.posterPath = tmdb.posterPath;
+              rec.trailerUrl = tmdb.trailerKey
+                ? `https://www.youtube.com/watch?v=${tmdb.trailerKey}`
+                : null;
+            }
+          } catch {}
+          return rec;
+        })
+      );
+
       // Log each recommendation
-      for (const rec of recommendations) {
+      for (const rec of enriched) {
         await storage.logRecommendation({
           userId: req.params.userId,
           title: rec.title,
@@ -367,7 +391,7 @@ export function registerRoutes(app: Express) {
         });
       }
 
-      res.json(recommendations);
+      res.json(enriched);
     } catch (error) {
       console.error("Error generating recommendations:", error);
       res.status(500).json({ error: "Failed to generate recommendations" });
@@ -429,6 +453,413 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Error updating outcome:", error);
       res.status(500).json({ error: "Failed to update outcome" });
+    }
+  });
+
+  // === Recommendation Stats ===
+
+  app.get("/api/users/:userId/recommendation-stats", async (req, res) => {
+    try {
+      const stats = await storage.getRecommendationStats(req.params.userId);
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  // Distinct streaming providers (UK) across both new releases and Guardian
+  // archive — used to populate the provider filter pill row.
+  app.get("/api/streaming-providers", async (req, res) => {
+    try {
+      const providers = await storage.getStreamingProviders();
+      res.json(providers);
+    } catch (error) {
+      console.error("Error fetching streaming providers:", error);
+      res.status(500).json({ error: "Failed to fetch streaming providers" });
+    }
+  });
+
+  // Unified picks across all sources (new releases + Guardian archive). Each
+  // pick carries a `source` discriminator and an attached `release` or
+  // `review` object — frontend renders one feed.
+  app.get("/api/users/:userId/picks", async (req, res) => {
+    try {
+      const userId = req.params.userId;
+      const mediaType = req.query.mediaType as "film" | "tv" | undefined;
+      const provider = req.query.provider as string | undefined;
+      const [newPicks, guardianPicks] = await Promise.all([
+        storage.getUserPicks(userId, mediaType),
+        storage.getUserGuardianPicks(userId),
+      ]);
+
+      const filterByProvider = (streamingUk: unknown) => {
+        if (!provider) return true;
+        if (!Array.isArray(streamingUk)) return false;
+        return streamingUk.some(
+          (s: { provider?: string }) => s?.provider === provider
+        );
+      };
+
+      const unified: Array<{
+        id: string;
+        source: "new_release" | "guardian_review";
+        relevanceScore: number | null;
+        reason: string | null;
+        status: string;
+        item: unknown;
+      }> = [];
+
+      for (const p of newPicks) {
+        if (mediaType && p.release.mediaType !== mediaType) continue;
+        if (!filterByProvider(p.release.streamingUk)) continue;
+        unified.push({
+          id: p.id,
+          source: "new_release",
+          relevanceScore: p.relevanceScore,
+          reason: p.reason,
+          status: p.status || "new",
+          item: p.release,
+        });
+      }
+      for (const p of guardianPicks) {
+        if (mediaType && p.review.mediaType !== mediaType) continue;
+        if (!filterByProvider(p.review.streamingUk)) continue;
+        unified.push({
+          id: p.id,
+          source: "guardian_review",
+          relevanceScore: p.relevanceScore,
+          reason: p.reason,
+          status: p.status || "new",
+          item: p.review,
+        });
+      }
+      unified.sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
+      res.json(unified);
+    } catch (error) {
+      console.error("Error fetching unified picks:", error);
+      res.status(500).json({ error: "Failed to fetch picks" });
+    }
+  });
+
+  // Unified action endpoint — routes to the right per-source handler based on
+  // the pick id (which is unambiguous since user_picks and user_guardian_picks
+  // both use UUIDs from disjoint pools).
+  app.post("/api/users/:userId/picks/:pickId/action", async (req, res) => {
+    try {
+      const userId = req.params.userId;
+      const pickId = req.params.pickId;
+      const { action, rating, reason } = req.body as {
+        action: "add_to_watchlist" | "watched" | "rejected";
+        rating?: "loved" | "ok" | "disliked";
+        reason?: string;
+      };
+
+      // Try guardian-pick first, fall back to new-release-pick.
+      const gpicks = await storage.getUserGuardianPicks(userId);
+      const gpick = gpicks.find((p) => p.id === pickId);
+      if (gpick) {
+        const r = gpick.review;
+        if (action === "add_to_watchlist") {
+          await storage.addToWatchlist({
+            userId,
+            title: r.title,
+            mediaType: r.mediaType,
+            year: r.year,
+            recommendationReason: gpick.reason,
+          });
+          await storage.updateUserGuardianPickStatus(pickId, "added_to_watchlist");
+        } else if (action === "watched") {
+          await storage.addToWatchHistory({
+            userId,
+            title: r.title,
+            mediaType: r.mediaType,
+            year: r.year,
+            rating,
+          });
+          await storage.updateUserGuardianPickStatus(pickId, "watched");
+        } else if (action === "rejected") {
+          await storage.addRejectedItem({
+            userId,
+            title: r.title,
+            mediaType: r.mediaType,
+            year: r.year,
+            reason: reason || "Not interested",
+          });
+          await storage.updateUserGuardianPickStatus(pickId, "rejected");
+        }
+        return res.json({ success: true, source: "guardian_review" });
+      }
+
+      const npicks = await storage.getUserPicks(userId);
+      const npick = npicks.find((p) => p.id === pickId);
+      if (npick) {
+        const r = npick.release;
+        if (action === "add_to_watchlist") {
+          await storage.addToWatchlist({
+            userId,
+            title: r.title,
+            mediaType: r.mediaType,
+            year: r.year,
+            recommendationReason: npick.reason,
+          });
+          await storage.updateUserPickStatus(pickId, "added_to_watchlist");
+        } else if (action === "watched") {
+          await storage.addToWatchHistory({
+            userId,
+            title: r.title,
+            mediaType: r.mediaType,
+            year: r.year,
+            rating,
+          });
+          await storage.updateUserPickStatus(pickId, "watched");
+        } else if (action === "rejected") {
+          await storage.addRejectedItem({
+            userId,
+            title: r.title,
+            mediaType: r.mediaType,
+            year: r.year,
+            reason: reason || "Not interested",
+          });
+          await storage.updateUserPickStatus(pickId, "rejected");
+        }
+        return res.json({ success: true, source: "new_release" });
+      }
+
+      res.status(404).json({ error: "Pick not found" });
+    } catch (error) {
+      console.error("Error handling unified pick action:", error);
+      res.status(500).json({ error: "Failed to handle action" });
+    }
+  });
+
+  // Refresh both pick sources at once (re-runs scoring for both pipelines).
+  app.post("/api/users/:userId/picks/refresh", async (req, res) => {
+    try {
+      const userId = req.params.userId;
+      const guidance = req.body?.guidance as string | undefined;
+      await Promise.all([
+        scoreNewReleasesForUser(userId, undefined, undefined, guidance),
+        scoreGuardianPicksForUser(userId, undefined, guidance),
+      ]);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error refreshing picks:", error);
+      res.status(500).json({ error: "Failed to refresh picks" });
+    }
+  });
+
+  // Recent Guardian reviews from the archive (any rating, last 60 days)
+  app.get("/api/guardian-reviews-recent", async (req, res) => {
+    try {
+      const days = req.query.days ? parseInt(req.query.days as string, 10) : 60;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+      const reviews = await storage.getRecentGuardianReviews(days, limit);
+      res.json(reviews);
+    } catch (error) {
+      console.error("Error fetching recent guardian reviews:", error);
+      res.status(500).json({ error: "Failed to fetch recent guardian reviews" });
+    }
+  });
+
+  // Personalised Guardian picks (scored against user taste, last 12 months)
+  app.get("/api/users/:userId/guardian-picks", async (req, res) => {
+    try {
+      const picks = await storage.getUserGuardianPicks(req.params.userId);
+      res.json(picks);
+    } catch (error) {
+      console.error("Error fetching guardian picks:", error);
+      res.status(500).json({ error: "Failed to fetch guardian picks" });
+    }
+  });
+
+  app.post("/api/users/:userId/guardian-picks/refresh", async (req, res) => {
+    try {
+      const guidance = req.body?.guidance as string | undefined;
+      await scoreGuardianPicksForUser(req.params.userId, undefined, guidance);
+      const picks = await storage.getUserGuardianPicks(req.params.userId);
+      res.json(picks);
+    } catch (error) {
+      console.error("Error refreshing guardian picks:", error);
+      res.status(500).json({ error: "Failed to refresh guardian picks" });
+    }
+  });
+
+  app.post("/api/users/:userId/guardian-picks/:pickId/action", async (req, res) => {
+    try {
+      const { action, rating } = req.body as {
+        action: "add_to_watchlist" | "watched" | "rejected";
+        rating?: "loved" | "ok" | "disliked";
+      };
+      const userId = req.params.userId;
+      const pickId = req.params.pickId;
+      const picks = await storage.getUserGuardianPicks(userId);
+      const pick = picks.find((p) => p.id === pickId);
+      if (!pick) return res.status(404).json({ error: "Pick not found" });
+
+      const review = pick.review;
+      if (action === "add_to_watchlist") {
+        await storage.addToWatchlist({
+          userId,
+          title: review.title,
+          mediaType: review.mediaType,
+          year: review.year,
+          recommendationReason: pick.reason,
+        });
+        await storage.updateUserGuardianPickStatus(pickId, "added_to_watchlist");
+      } else if (action === "watched") {
+        await storage.addToWatchHistory({
+          userId,
+          title: review.title,
+          mediaType: review.mediaType,
+          year: review.year,
+          rating: rating || undefined,
+        });
+        await storage.updateUserGuardianPickStatus(pickId, "watched");
+      } else if (action === "rejected") {
+        await storage.addRejectedItem({
+          userId,
+          title: review.title,
+          mediaType: review.mediaType,
+          year: review.year,
+          reason: req.body?.reason || "Not interested",
+        });
+        await storage.updateUserGuardianPickStatus(pickId, "rejected");
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error handling guardian pick action:", error);
+      res.status(500).json({ error: "Failed to handle action" });
+    }
+  });
+
+  // Admin: initial / backfill archive fetch (365 days)
+  app.post("/api/admin/guardian-archive-backfill", async (req, res) => {
+    const adminSecret = process.env.ADMIN_SECRET;
+    if (adminSecret && req.headers["x-admin-key"] !== adminSecret) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    try {
+      const days = req.body?.days ? parseInt(req.body.days as string, 10) : 365;
+      const result = await fetchAndStoreGuardianArchive(days);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error("Error backfilling archive:", error);
+      res.status(500).json({ error: "Failed to backfill archive" });
+    }
+  });
+
+  // === New For You ===
+
+  app.get("/api/users/:userId/new-for-you", async (req, res) => {
+    try {
+      const mediaType = req.query.mediaType as "film" | "tv" | undefined;
+      const picks = await storage.getUserPicks(req.params.userId, mediaType);
+      res.json(picks);
+    } catch (error) {
+      console.error("Error fetching picks:", error);
+      res.status(500).json({ error: "Failed to fetch picks" });
+    }
+  });
+
+  app.post("/api/users/:userId/new-for-you/:pickId/action", async (req, res) => {
+    try {
+      const { action, rating } = req.body;
+      const userId = req.params.userId;
+      const pickId = req.params.pickId;
+
+      // Get the pick to find the release details
+      const picks = await storage.getUserPicks(userId);
+      const pick = picks.find((p) => p.id === pickId);
+      if (!pick) {
+        return res.status(404).json({ error: "Pick not found" });
+      }
+
+      const release = pick.release;
+
+      if (action === "add_to_watchlist") {
+        await storage.addToWatchlist({
+          userId,
+          title: release.title,
+          mediaType: release.mediaType,
+          year: release.year,
+          recommendationReason: pick.reason,
+        });
+        await storage.updateUserPickStatus(pickId, "added_to_watchlist");
+      } else if (action === "watched") {
+        await storage.addToWatchHistory({
+          userId,
+          title: release.title,
+          mediaType: release.mediaType,
+          year: release.year,
+          rating: rating || undefined,
+        });
+        await storage.updateUserPickStatus(pickId, "watched");
+      } else if (action === "rejected") {
+        await storage.addRejectedItem({
+          userId,
+          title: release.title,
+          mediaType: release.mediaType,
+          year: release.year,
+          reason: req.body.reason || "Not interested",
+        });
+        await storage.updateUserPickStatus(pickId, "rejected");
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error handling pick action:", error);
+      res.status(500).json({ error: "Failed to handle action" });
+    }
+  });
+
+  app.post("/api/users/:userId/new-for-you/refresh", async (req, res) => {
+    try {
+      const guidance = req.body.guidance as string | undefined;
+      await scoreNewReleasesForUser(req.params.userId, undefined, undefined, guidance);
+      const picks = await storage.getUserPicks(req.params.userId);
+      res.json(picks);
+    } catch (error) {
+      console.error("Error refreshing picks:", error);
+      res.status(500).json({ error: "Failed to refresh picks" });
+    }
+  });
+
+  // Admin: add a single TMDB release manually (for titles that fell out of now_playing)
+  app.post("/api/admin/add-release", async (req, res) => {
+    const adminSecret = process.env.ADMIN_SECRET;
+    if (adminSecret && req.headers["x-admin-key"] !== adminSecret) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const { tmdbId, mediaType } = req.body as {
+      tmdbId?: number;
+      mediaType?: "film" | "tv";
+    };
+    if (!tmdbId || !mediaType) {
+      return res.status(400).json({ error: "tmdbId and mediaType required" });
+    }
+    try {
+      const result = await addTmdbRelease(tmdbId, mediaType);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error("Error adding release:", error);
+      res.status(500).json({ error: "Failed to add release", message: String(error) });
+    }
+  });
+
+  // Admin: manually trigger the full daily job
+  app.post("/api/admin/run-new-releases", async (req, res) => {
+    const adminSecret = process.env.ADMIN_SECRET;
+    if (adminSecret && req.headers["x-admin-key"] !== adminSecret) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      const result = await runDailyNewReleases();
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error("Error running new releases job:", error);
+      res.status(500).json({ error: "Failed to run job" });
     }
   });
 }

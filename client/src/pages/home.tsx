@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Loader2, Sparkles, ListVideo, History, Heart, User, LogOut, Link } from "lucide-react";
+import { Loader2, Sparkles, ListVideo, History, Heart, User, LogOut, Link, Zap } from "lucide-react";
 import { useUser, UserProvider } from "@/hooks/use-user";
 import { Onboarding } from "@/components/Onboarding";
+import { NewForYou } from "@/components/NewForYou";
 import { Recommendations } from "@/components/Recommendations";
 import { WatchlistView } from "@/components/WatchlistView";
 import { HistoryView } from "@/components/HistoryView";
@@ -14,11 +15,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-type Tab = "discover" | "watchlist" | "history" | "preferences";
+type Tab = "new-for-you" | "discover" | "watchlist" | "history" | "preferences";
 
 function HomeContent() {
   const { user, loading, isAuthenticated, logout, startAnonymous } = useUser();
-  const [activeTab, setActiveTab] = useState<Tab>("discover");
+  const [activeTab, setActiveTab] = useState<Tab>("new-for-you");
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register" | "link">("login");
@@ -26,7 +27,7 @@ function HomeContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[var(--ae-accent-cyan)]" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -41,17 +42,17 @@ function HomeContent() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center space-y-6 max-w-md">
-          <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-[var(--ae-accent-cyan)] to-[var(--ae-accent-magenta)] flex items-center justify-center">
-            <Sparkles className="w-10 h-10 text-white" />
+          <div className="w-20 h-20 mx-auto rounded-2xl bg-primary flex items-center justify-center">
+            <Sparkles className="w-10 h-10 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-gradient">Watchlist</h1>
+            <h1 className="font-display text-3xl font-bold text-foreground">Watchlist</h1>
             <p className="text-muted-foreground mt-2">
               Your personal film & TV recommender that learns what you love.
             </p>
           </div>
           <div className="space-y-3">
-            <Button onClick={() => openAuth("register")} className="glow-cyan w-full" size="lg">
+            <Button onClick={() => openAuth("register")} className="w-full" size="lg">
               Create Account
             </Button>
             <Button onClick={() => openAuth("login")} variant="outline" className="w-full" size="lg">
@@ -84,9 +85,9 @@ function HomeContent() {
   return (
     <div className="min-h-screen pb-20">
       {/* Header */}
-      <header className="sticky top-0 z-10 glass border-b border-border/50">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gradient">Watchlist</h1>
+      <header className="sticky top-0 z-10 bg-card/80 backdrop-blur-sm border-b border-border">
+        <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 lg:px-6 py-3 flex items-center justify-between">
+          <h1 className="font-display text-xl font-bold text-foreground">Watchlist</h1>
           <div className="flex items-center gap-2">
             {isAuthenticated ? (
               <Tooltip>
@@ -129,7 +130,8 @@ function HomeContent() {
       </header>
 
       {/* Content */}
-      <main className="max-w-2xl mx-auto px-4 py-6">
+      <main className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 lg:px-6 py-6">
+        {activeTab === "new-for-you" && <NewForYou />}
         {activeTab === "discover" && <Recommendations />}
         {activeTab === "watchlist" && <WatchlistView />}
         {activeTab === "history" && <HistoryView />}
@@ -137,9 +139,15 @@ function HomeContent() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border/50">
-        <div className="max-w-2xl mx-auto px-4">
+      <nav className="fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-sm border-t border-border">
+        <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 lg:px-6">
           <div className="flex justify-around py-2">
+            <NavButton
+              icon={<Zap className="w-5 h-5" />}
+              label="New"
+              active={activeTab === "new-for-you"}
+              onClick={() => setActiveTab("new-for-you")}
+            />
             <NavButton
               icon={<Sparkles className="w-5 h-5" />}
               label="Discover"
@@ -186,7 +194,7 @@ function NavButton({ icon, label, active, onClick }: NavButtonProps) {
       onClick={onClick}
       className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-all ${
         active
-          ? "text-[var(--ae-accent-cyan)]"
+          ? "text-primary"
           : "text-muted-foreground hover:text-foreground"
       }`}
     >

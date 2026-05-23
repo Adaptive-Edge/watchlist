@@ -107,11 +107,11 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   const steps = [
     // Step 0: Welcome
     <div key="welcome" className="text-center space-y-6">
-      <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-[var(--ae-accent-cyan)] to-[var(--ae-accent-magenta)] flex items-center justify-center">
-        <Sparkles className="w-10 h-10 text-white" />
+      <div className="w-20 h-20 mx-auto rounded-2xl bg-primary flex items-center justify-center">
+        <Sparkles className="w-10 h-10 text-primary-foreground" />
       </div>
       <div>
-        <h2 className="text-2xl font-bold text-gradient">Welcome to Watchlist</h2>
+        <h2 className="font-display text-2xl font-bold text-foreground">Welcome to Watchlist</h2>
         <p className="text-muted-foreground mt-2">
           Your personal film & TV recommender that learns what you love.
         </p>
@@ -119,7 +119,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       <p className="text-sm text-muted-foreground">
         Let's set up your profile so I can give you great recommendations.
       </p>
-      <Button onClick={() => setStep(1)} className="glow-cyan">
+      <Button onClick={() => setStep(1)}>
         Get Started <ChevronRight className="w-4 h-4 ml-2" />
       </Button>
     </div>,
@@ -137,7 +137,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             onClick={() => toggleGenre(genre)}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
               selectedGenres[genre]
-                ? "bg-[var(--ae-accent-cyan)] text-white glow-cyan"
+                ? "bg-primary text-primary-foreground"
                 : "bg-muted hover:bg-muted/80 text-muted-foreground"
             }`}
           >
@@ -168,7 +168,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             onClick={() => toggleMood(mood.name)}
             className={`p-3 rounded-lg text-left transition-all ${
               selectedMoods[mood.name]
-                ? "bg-[var(--ae-accent-magenta)]/20 border-2 border-[var(--ae-accent-magenta)]"
+                ? "bg-accent/20 border-2 border-accent"
                 : "bg-muted/50 border-2 border-transparent hover:border-muted-foreground/30"
             }`}
           >
@@ -201,13 +201,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           onChange={(e) => setNewFavourite(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addFavourite()}
           placeholder="e.g. Breaking Bad"
-          className="flex-1 px-4 py-2 rounded-lg bg-muted border border-border focus:border-[var(--ae-accent-cyan)] outline-none"
+          className="flex-1 px-4 py-2 rounded-lg bg-muted border border-border focus:border-primary outline-none"
         />
         <div className="flex gap-1">
           <button
             onClick={() => setNewFavouriteType("film")}
             className={`p-2 rounded-lg ${
-              newFavouriteType === "film" ? "bg-[var(--ae-accent-cyan)] text-white" : "bg-muted"
+              newFavouriteType === "film" ? "bg-primary text-primary-foreground" : "bg-muted"
             }`}
           >
             <Film className="w-5 h-5" />
@@ -215,7 +215,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           <button
             onClick={() => setNewFavouriteType("tv")}
             className={`p-2 rounded-lg ${
-              newFavouriteType === "tv" ? "bg-[var(--ae-accent-cyan)] text-white" : "bg-muted"
+              newFavouriteType === "tv" ? "bg-primary text-primary-foreground" : "bg-muted"
             }`}
           >
             <Tv className="w-5 h-5" />
@@ -254,7 +254,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         <Button
           onClick={saveAndContinue}
           disabled={favourites.length === 0 || saving}
-          className="glow-cyan"
         >
           {saving ? "Saving..." : (
             <>Finish Setup <Heart className="w-4 h-4 ml-2" /></>
@@ -266,7 +265,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="glass w-full max-w-lg">
+      <Card className="bg-card border border-border shadow-md w-full max-w-lg">
         <CardContent className="p-6">
           <div className="flex justify-center gap-2 mb-6">
             {[0, 1, 2, 3].map(i => (
@@ -274,9 +273,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                 key={i}
                 className={`w-2 h-2 rounded-full transition-all ${
                   i === step
-                    ? "w-8 bg-[var(--ae-accent-cyan)]"
+                    ? "w-8 bg-primary"
                     : i < step
-                    ? "bg-[var(--ae-accent-cyan)]/50"
+                    ? "bg-primary/50"
                     : "bg-muted"
                 }`}
               />

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/hooks/use-user";
-import { Film, Tv, Heart, Loader2, Star, Smile, User, Video, Brain, Sparkles, RefreshCw, Lightbulb } from "lucide-react";
+import { Film, Tv, Heart, Loader2, Star, Smile, User, Video, Brain, Sparkles, RefreshCw, Lightbulb, BarChart3 } from "lucide-react";
 
 interface FavouriteTitle {
   id: string;
@@ -32,6 +32,17 @@ interface ActorPreference {
 interface DirectorPreference {
   id: string;
   name: string;
+}
+
+interface RecommendationStats {
+  total: number;
+  addedToWatchlist: number;
+  watched: number;
+  rejected: number;
+  noAction: number;
+  watchlistRate: number;
+  watchedRate: number;
+  rejectedRate: number;
 }
 
 interface TasteInsights {
@@ -76,12 +87,17 @@ export function PreferencesView() {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
+  const { data: stats } = useQuery<RecommendationStats>({
+    queryKey: [`/api/users/${user?.id}/recommendation-stats`],
+    enabled: !!user,
+  });
+
   const isLoading = loadingFavourites || loadingGenres || loadingMoods || loadingActors || loadingDirectors;
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-[var(--ae-accent-cyan)]" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -92,12 +108,12 @@ export function PreferencesView() {
   return (
     <div className="space-y-6">
       {/* AI Taste Insights */}
-      <Card className="glass border-[var(--ae-accent-cyan)]/30 overflow-hidden">
+      <Card className="bg-card border border-accent/40 shadow-md overflow-hidden">
         <CardContent className="p-0">
-          <div className="bg-gradient-to-r from-[var(--ae-accent-cyan)]/10 to-[var(--ae-accent-magenta)]/10 p-4 border-b border-border/50">
+          <div className="bg-accent/10 p-4 border-b border-border/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Brain className="w-5 h-5 text-[var(--ae-accent-cyan)]" />
+                <Brain className="w-5 h-5 text-accent" />
                 <h2 className="text-lg font-bold">Your Taste Profile</h2>
               </div>
               <Button
@@ -115,7 +131,7 @@ export function PreferencesView() {
           <div className="p-4 space-y-4">
             {loadingInsights || fetchingInsights ? (
               <div className="flex items-center gap-3 py-4">
-                <Loader2 className="w-5 h-5 animate-spin text-[var(--ae-accent-cyan)]" />
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
                 <span className="text-sm text-muted-foreground">Analyzing your taste...</span>
               </div>
             ) : insights ? (
@@ -129,7 +145,7 @@ export function PreferencesView() {
                     {insights.topThemes.map((theme, i) => (
                       <span
                         key={i}
-                        className="px-2 py-1 text-xs rounded-full bg-[var(--ae-accent-cyan)]/20 text-[var(--ae-accent-cyan)] border border-[var(--ae-accent-cyan)]/30"
+                        className="px-2 py-1 text-xs rounded-full bg-accent/20 text-accent border border-accent/30"
                       >
                         {theme}
                       </span>
@@ -140,21 +156,21 @@ export function PreferencesView() {
                 {/* Watching Style & Mood */}
                 <div className="grid gap-3 text-sm">
                   <div className="flex items-start gap-2">
-                    <Sparkles className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
+                    <Sparkles className="w-4 h-4 text-[#fec666] mt-0.5 shrink-0" />
                     <span className="text-muted-foreground">{insights.watchingStyle}</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <Smile className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                    <Smile className="w-4 h-4 text-[#93b6ee] mt-0.5 shrink-0" />
                     <span className="text-muted-foreground">{insights.moodProfile}</span>
                   </div>
                 </div>
 
                 {/* Hidden Gem Suggestion */}
-                <div className="p-3 rounded-lg bg-[var(--ae-accent-magenta)]/10 border border-[var(--ae-accent-magenta)]/20">
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
                   <div className="flex items-start gap-2">
-                    <Lightbulb className="w-4 h-4 text-[var(--ae-accent-magenta)] mt-0.5 shrink-0" />
+                    <Lightbulb className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                     <div>
-                      <span className="text-xs font-medium text-[var(--ae-accent-magenta)]">Hidden Gem</span>
+                      <span className="text-xs font-medium text-primary">Hidden Gem</span>
                       <p className="text-sm mt-1">{insights.hiddenGem}</p>
                     </div>
                   </div>
@@ -169,10 +185,40 @@ export function PreferencesView() {
         </CardContent>
       </Card>
 
+      {/* Recommendation Stats */}
+      {stats && stats.total > 0 && (
+        <Card className="bg-card border border-border shadow-md">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart3 className="w-5 h-5 text-accent" />
+              <h2 className="text-lg font-semibold">Your Stats</h2>
+            </div>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="text-center">
+                <div className="text-2xl font-bold">{stats.total}</div>
+                <div className="text-xs text-muted-foreground">Recommended</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-accent">{stats.watchlistRate}%</div>
+                <div className="text-xs text-muted-foreground">Saved</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-primary">{stats.watched}</div>
+                <div className="text-xs text-muted-foreground">Watched</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-muted-foreground">{stats.rejectedRate}%</div>
+                <div className="text-xs text-muted-foreground">Skipped</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Favourite Titles */}
       <section>
         <div className="flex items-center gap-2 mb-3">
-          <Heart className="w-5 h-5 text-pink-500" />
+          <Heart className="w-5 h-5 text-primary fill-primary" />
           <h2 className="text-lg font-semibold">Favourite Titles</h2>
           <span className="text-sm text-muted-foreground">({favourites?.length || 0})</span>
         </div>
@@ -185,9 +231,9 @@ export function PreferencesView() {
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border"
               >
                 {fav.mediaType === "film" ? (
-                  <Film className="w-4 h-4 text-[var(--ae-accent-cyan)]" />
+                  <Film className="w-4 h-4 text-accent" />
                 ) : (
-                  <Tv className="w-4 h-4 text-[var(--ae-accent-magenta)]" />
+                  <Tv className="w-4 h-4 text-primary" />
                 )}
                 <span className="text-sm font-medium">{fav.title}</span>
                 {fav.year && (
@@ -205,7 +251,7 @@ export function PreferencesView() {
       {likedGenres.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-3">
-            <Star className="w-5 h-5 text-yellow-500" />
+            <Star className="w-5 h-5 text-[#fec666] fill-[#fec666]" />
             <h2 className="text-lg font-semibold">Favourite Genres</h2>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -225,7 +271,7 @@ export function PreferencesView() {
       {likedMoods.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-3">
-            <Smile className="w-5 h-5 text-green-500" />
+            <Smile className="w-5 h-5 text-[#93b6ee]" />
             <h2 className="text-lg font-semibold">Preferred Moods</h2>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -245,7 +291,7 @@ export function PreferencesView() {
       {actors && actors.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-3">
-            <User className="w-5 h-5 text-blue-500" />
+            <User className="w-5 h-5 text-accent" />
             <h2 className="text-lg font-semibold">Favourite Actors</h2>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -265,7 +311,7 @@ export function PreferencesView() {
       {directors && directors.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-3">
-            <Video className="w-5 h-5 text-purple-500" />
+            <Video className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold">Favourite Directors</h2>
           </div>
           <div className="flex flex-wrap gap-2">

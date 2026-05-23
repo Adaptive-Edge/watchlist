@@ -24,7 +24,7 @@ export function HistoryView() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-[var(--ae-accent-cyan)]" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -44,11 +44,11 @@ export function HistoryView() {
   const getRatingIcon = (rating: string | null) => {
     switch (rating) {
       case "loved":
-        return <Heart className="w-4 h-4 text-pink-500" />;
+        return <Heart className="w-4 h-4 text-[#f16c5f] fill-[#f16c5f]" />;
       case "ok":
-        return <Meh className="w-4 h-4 text-yellow-500" />;
+        return <Meh className="w-4 h-4 text-[#fec666]" />;
       case "disliked":
-        return <ThumbsDown className="w-4 h-4 text-red-500" />;
+        return <ThumbsDown className="w-4 h-4 text-destructive" />;
       default:
         return null;
     }
@@ -61,16 +61,16 @@ export function HistoryView() {
         <span className="text-sm text-muted-foreground">{history.length} watched</span>
       </div>
 
-      <div className="grid gap-2">
+      <div className="grid gap-2 lg:grid-cols-2 lg:gap-3">
         {history.map((item) => (
-          <Card key={item.id} className="glass">
+          <Card key={item.id} className="bg-card border border-border shadow-md">
             <CardContent className="p-3">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded bg-muted flex items-center justify-center shrink-0">
                   {item.mediaType === "film" ? (
-                    <Film className="w-4 h-4 text-[var(--ae-accent-cyan)]" />
+                    <Film className="w-4 h-4 text-accent" />
                   ) : (
-                    <Tv className="w-4 h-4 text-[var(--ae-accent-magenta)]" />
+                    <Tv className="w-4 h-4 text-primary" />
                   )}
                 </div>
 

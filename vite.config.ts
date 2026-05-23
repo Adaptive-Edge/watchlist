@@ -2,9 +2,10 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
-// Watchlist - Update base path to match your app's URL path
+const isCapacitorBuild = !!process.env.CAPACITOR_BUILD;
+
 export default defineConfig({
-  base: "/watchlist/",
+  base: isCapacitorBuild ? "/" : "/watchlist/",
   plugins: [react()],
   resolve: {
     alias: {

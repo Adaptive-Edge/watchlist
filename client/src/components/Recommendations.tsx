@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { TrailerPlayer } from "@/components/TrailerPlayer";
 import { useUser } from "@/hooks/use-user";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -17,7 +17,10 @@ import {
   Loader2,
   Send,
   RefreshCw,
+  Play,
 } from "lucide-react";
+
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 
 interface Recommendation {
   title: string;
@@ -26,6 +29,24 @@ interface Recommendation {
   reason: string;
   imdbScore: number | null;
   rottenTomatoesScore: number | null;
+  matchScore: number | null;
+  genres: string[];
+  posterPath?: string | null;
+  trailerUrl?: string | null;
+}
+
+interface GenrePreference {
+  id: string;
+  genre: string;
+  rating: number;
+}
+
+type MediaFilter = "all" | "film" | "tv";
+
+function matchColor(score: number): string {
+  if (score >= 85) return "bg-emerald-500/90 text-white";
+  if (score >= 70) return "bg-sky-500/90 text-white";
+  return "bg-amber-500/90 text-white";
 }
 
 export function Recommendations() {
@@ -35,6 +56,17 @@ export function Recommendations() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [celebrating, setCelebrating] = useState<string | null>(null);
+  const [filter, setFilter] = useState<MediaFilter>("all");
+
+  const { data: genres } = useQuery<GenrePreference[]>({
+    queryKey: [`/api/users/${user?.id}/genres`],
+    enabled: !!user?.id,
+  });
+
+  const likedGenres = (genres || [])
+    .filter((g) => g.rating >= 4)
+    .map((g) => g.genre)
+    .slice(0, 4);
 
   const generateMutation = useMutation({
     mutationFn: async (userRequest?: string) => {
@@ -97,9 +129,7 @@ export function Recommendations() {
       });
 
       if (rating === "loved") {
-        // Trigger celebration animation
         setCelebrating(rec.title);
-        // Wait for animation before removing
         setTimeout(() => {
           setRecommendations((prev) => prev.filter((r) => r.title !== rec.title));
           setCelebrating(null);
@@ -113,67 +143,91 @@ export function Recommendations() {
     }
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Request Input */}
-      <Card className="glass">
-        <CardContent className="p-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={request}
-              onChange={(e) => setRequest(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
-              placeholder="What are you in the mood for? e.g. 'Something like Breaking Bad but funnier'"
-              className="flex-1 px-4 py-3 rounded-lg bg-muted/50 border border-border focus:border-[var(--ae-accent-cyan)] outline-none text-sm"
-            />
-            <Button
-              onClick={handleGenerate}
-              disabled={generateMutation.isPending}
-              className="glow-cyan"
-            >
-              {generateMutation.isPending ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : request ? (
-                <Send className="w-5 h-5" />
-              ) : (
-                <Sparkles className="w-5 h-5" />
-              )}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            {request
-              ? "Press enter or click to search"
-              : "Click to get personalized recommendations based on your profile"}
-          </p>
-        </CardContent>
-      </Card>
+  const visible = recommendations.filter(
+    (r) => filter === "all" || r.mediaType === filter
+  );
 
-      {/* Recommendations */}
-      {generateMutation.isPending && recommendations.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin text-[var(--ae-accent-cyan)]" />
-          <p className="text-muted-foreground">Finding perfect recommendations for you...</p>
+  return (
+    <div className="space-y-5">
+      {/* Taste profile header */}
+      {likedGenres.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">Curated for your love of</p>
+          <div className="flex flex-wrap gap-2">
+            {likedGenres.map((g) => (
+              <span
+                key={g}
+                className="px-3 py-1 rounded-full text-xs font-medium border border-[#93b6ee]/30 bg-[#93b6ee]/10 text-[#93b6ee]"
+              >
+                {g}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
+      {/* Search / steer */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={request}
+          onChange={(e) => setRequest(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
+          placeholder="Steer your picks… e.g. 'more comedy', 'less dark', 'nothing too heavy'"
+          className="flex-1 px-4 py-3 rounded-lg bg-muted/50 border border-border focus:border-primary outline-none text-sm"
+        />
+        <Button onClick={handleGenerate} disabled={generateMutation.isPending} className="shrink-0">
+          {generateMutation.isPending ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : request ? (
+            <Send className="w-5 h-5" />
+          ) : (
+            <Sparkles className="w-5 h-5" />
+          )}
+        </Button>
+      </div>
+
+      {/* Loading */}
+      {generateMutation.isPending && recommendations.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground text-sm">Finding perfect recommendations for you…</p>
+        </div>
+      )}
+
+      {/* Results */}
       {recommendations.length > 0 && (
         <div className="space-y-4">
+          {/* Filter row */}
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Recommendations</h2>
+            <div className="flex gap-2">
+              {(["all", "film", "tv"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    filter === f
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {f === "all" ? "All" : f === "film" ? "Films" : "TV"}
+                </button>
+              ))}
+            </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => generateMutation.mutate(undefined)}
               disabled={generateMutation.isPending}
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${generateMutation.isPending ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-4 h-4 mr-1.5 ${generateMutation.isPending ? "animate-spin" : ""}`} />
               Refresh
             </Button>
           </div>
 
-          <div className="grid gap-4">
-            {recommendations.map((rec) => (
+          <div className="grid gap-3">
+            {visible.map((rec) => (
               <RecommendationCard
                 key={rec.title}
                 recommendation={rec}
@@ -184,16 +238,22 @@ export function Recommendations() {
                 onWatched={(rating) => handleWatched(rec, rating)}
               />
             ))}
+            {visible.length === 0 && (
+              <p className="text-center text-muted-foreground text-sm py-6">
+                No {filter === "film" ? "films" : "TV shows"} in this batch.
+              </p>
+            )}
           </div>
         </div>
       )}
 
+      {/* Empty state */}
       {!generateMutation.isPending && recommendations.length === 0 && (
         <div className="text-center py-12">
           <Sparkles className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">Ready for recommendations?</h3>
           <p className="text-muted-foreground text-sm max-w-md mx-auto">
-            Click the sparkle button to get personalized suggestions, or type what you're in the mood for.
+            Click the sparkle button to get personalised suggestions, or describe what you're in the mood for.
           </p>
         </div>
       )}
@@ -219,13 +279,19 @@ function RecommendationCard({
   onWatched,
 }: RecommendationCardProps) {
   const [showWatchedOptions, setShowWatchedOptions] = useState(false);
+  const [trailerOpen, setTrailerOpen] = useState(false);
+  const trailerKey = recommendation.trailerUrl?.match(/v=([^&]+)/)?.[1];
 
   return (
-    <Card className={`glass overflow-hidden transition-all duration-500 ${celebrating ? "scale-[1.02] shadow-[0_0_30px_rgba(236,72,153,0.4)]" : ""}`}>
-      <CardContent className="p-4 relative overflow-visible">
+    <>
+      <div
+        className={`relative bg-card border border-border rounded-xl overflow-hidden transition-all duration-500 ${
+          celebrating ? "scale-[1.02] shadow-[0_0_30px_rgba(241,108,95,0.4)]" : ""
+        }`}
+      >
         {/* Celebration sparkles */}
         {celebrating && (
-          <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 pointer-events-none z-10">
             {[...Array(12)].map((_, i) => (
               <span
                 key={i}
@@ -233,126 +299,166 @@ function RecommendationCard({
                 style={{
                   left: `${20 + Math.random() * 60}%`,
                   top: `${20 + Math.random() * 60}%`,
-                  backgroundColor: ['#ec4899', '#f472b6', '#fbbf24', '#facc15', '#a855f7'][i % 5],
+                  backgroundColor: ["#f16c5f", "#ef8b4f", "#fec666", "#93b6ee", "#324376"][i % 5],
                   animationDelay: `${i * 50}ms`,
                 }}
               />
             ))}
           </div>
         )}
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
-            {recommendation.mediaType === "film" ? (
-              <Film className="w-6 h-6 text-[var(--ae-accent-cyan)]" />
+
+        {/* Match badge */}
+        {recommendation.matchScore != null && (
+          <div
+            className={`absolute top-3 right-3 z-10 px-2.5 py-1 rounded-full text-xs font-bold tracking-wide ${matchColor(recommendation.matchScore)}`}
+          >
+            {recommendation.matchScore}% match
+          </div>
+        )}
+
+        <div className="flex gap-4 p-4">
+          {/* Poster */}
+          <div className="shrink-0">
+            {recommendation.posterPath ? (
+              <img
+                src={`${TMDB_IMAGE_BASE}/w185${recommendation.posterPath}`}
+                alt={recommendation.title}
+                className="w-[72px] h-[108px] rounded-lg object-cover"
+                loading="lazy"
+              />
             ) : (
-              <Tv className="w-6 h-6 text-[var(--ae-accent-magenta)]" />
+              <div className="w-[72px] h-[108px] rounded-lg bg-muted flex items-center justify-center">
+                {recommendation.mediaType === "film" ? (
+                  <Film className="w-7 h-7 text-muted-foreground" />
+                ) : (
+                  <Tv className="w-7 h-7 text-muted-foreground" />
+                )}
+              </div>
             )}
           </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-semibold truncate">{recommendation.title}</h3>
-              <span className="text-sm text-muted-foreground shrink-0">
-                ({recommendation.year})
-              </span>
-              {/* Scores */}
-              {(recommendation.imdbScore || recommendation.rottenTomatoesScore) && (
-                <div className="flex items-center gap-2 ml-auto shrink-0">
-                  {recommendation.imdbScore && (
-                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 font-medium">
-                      <span className="font-bold">IMDb</span> {recommendation.imdbScore.toFixed(1)}
-                    </span>
-                  )}
-                  {recommendation.rottenTomatoesScore && (
-                    <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium ${
-                      recommendation.rottenTomatoesScore >= 60
-                        ? "bg-red-500/20 text-red-400"
-                        : "bg-green-500/20 text-green-400"
-                    }`}>
-                      <span className="font-bold">RT</span> {recommendation.rottenTomatoesScore}%
-                    </span>
-                  )}
-                </div>
+          {/* Content */}
+          <div className="flex-1 min-w-0 pr-16">
+            {/* Title + meta */}
+            <h3 className="font-semibold text-base leading-snug text-foreground mb-1">
+              {recommendation.title}
+            </h3>
+            <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm text-muted-foreground mb-2">
+              <span>{recommendation.year}</span>
+              <span className="opacity-40">·</span>
+              <span>{recommendation.mediaType === "film" ? "Film" : "TV"}</span>
+              {recommendation.imdbScore && (
+                <>
+                  <span className="opacity-40">·</span>
+                  <span className="px-1.5 py-0.5 rounded bg-[#fec666]/20 text-[#fec666] text-xs font-semibold">
+                    IMDb {recommendation.imdbScore.toFixed(1)}
+                  </span>
+                </>
               )}
             </div>
-            <p className="text-sm text-muted-foreground mt-1">{recommendation.reason}</p>
 
+            {/* Genre tags */}
+            {recommendation.genres?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {recommendation.genres.map((g) => (
+                  <span
+                    key={g}
+                    className="px-2 py-0.5 rounded bg-muted/60 text-muted-foreground text-xs font-medium"
+                  >
+                    {g}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Reason */}
+            <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+              {recommendation.reason}
+            </p>
+
+            {/* Trailer link */}
+            {trailerKey && (
+              <button
+                onClick={() => setTrailerOpen(true)}
+                className="inline-flex items-center gap-1 text-xs text-[#93b6ee] hover:underline mb-3"
+              >
+                <Play className="w-3 h-3" /> Watch trailer
+              </button>
+            )}
+
+            {/* Actions */}
             {showWatchedOptions ? (
-              <div className="flex gap-2 mt-3">
-                <span className="text-sm text-muted-foreground self-center mr-2">Rate it:</span>
-                <Button
-                  size="sm"
-                  variant="ghost"
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-muted-foreground">Rate it:</span>
+                <button
                   onClick={() => onWatched("loved")}
                   disabled={loading}
-                  className="gap-1"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors"
                 >
-                  <Heart className="w-4 h-4 text-pink-500" /> Loved it
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
+                  <Heart className="w-3.5 h-3.5 text-[#f16c5f] fill-[#f16c5f]" /> Loved it
+                </button>
+                <button
                   onClick={() => onWatched("ok")}
                   disabled={loading}
-                  className="gap-1"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors"
                 >
-                  <Meh className="w-4 h-4 text-yellow-500" /> OK
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
+                  <Meh className="w-3.5 h-3.5 text-[#fec666]" /> OK
+                </button>
+                <button
                   onClick={() => onWatched("disliked")}
                   disabled={loading}
-                  className="gap-1"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors"
                 >
-                  <ThumbsDown className="w-4 h-4 text-red-500" /> Didn't like
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
+                  <ThumbsDown className="w-3.5 h-3.5 text-destructive" /> Didn't like
+                </button>
+                <button
                   onClick={() => setShowWatchedOptions(false)}
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <X className="w-4 h-4" />
-                </Button>
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             ) : (
-              <div className="flex gap-2 mt-3">
-                <Button
-                  size="sm"
+              <div className="flex gap-2 flex-wrap">
+                <button
                   onClick={onAddToWatchlist}
                   disabled={loading}
-                  className="gap-1"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[#93b6ee]/30 bg-[#93b6ee]/10 text-[#93b6ee] hover:bg-[#93b6ee]/20 disabled:opacity-50 transition-colors"
                 >
                   {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-3.5 h-3.5" />
                   )}
-                  Add to Watchlist
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
+                  Watchlist
+                </button>
+                <button
                   onClick={() => setShowWatchedOptions(true)}
                   disabled={loading}
-                  className="gap-1"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-50 transition-colors"
                 >
-                  <Eye className="w-4 h-4" /> Watched it
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
+                  <Eye className="w-3.5 h-3.5" /> Watched
+                </button>
+                <button
                   onClick={onReject}
                   disabled={loading}
-                  className="text-muted-foreground"
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
                 >
-                  <X className="w-4 h-4" /> Not interested
-                </Button>
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      {trailerOpen && trailerKey && (
+        <TrailerPlayer
+          trailerKey={trailerKey}
+          title={recommendation.title}
+          onClose={() => setTrailerOpen(false)}
+        />
+      )}
+    </>
   );
 }

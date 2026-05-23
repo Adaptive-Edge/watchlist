@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import { isNative } from "@/lib/config";
 
 interface User {
   id: string;
@@ -22,6 +23,25 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+const USER_KEY = "watchlist_user";
+
+function saveUser(user: User) {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+function loadUser(): User | null {
+  try {
+    const stored = localStorage.getItem(USER_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearUser() {
+  localStorage.removeItem(USER_KEY);
+}
+
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,21 +52,37 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   async function checkSession() {
     try {
+      // Try session cookie first (works on web)
       const response = await apiRequest("GET", "/api/auth/me");
       if (response.user) {
         setUser(response.user);
+        saveUser(response.user);
+        setLoading(false);
+        return;
       }
-    } catch (error) {
-      console.error("Failed to check session:", error);
-    } finally {
-      setLoading(false);
+    } catch {}
+
+    // Fall back to stored user (works on native where cookies don't persist)
+    const stored = loadUser();
+    if (stored) {
+      try {
+        // Verify the user still exists
+        const userData = await apiRequest("GET", `/api/users/${stored.id}`);
+        setUser(userData);
+        saveUser(userData);
+      } catch {
+        clearUser();
+      }
     }
+
+    setLoading(false);
   }
 
   async function login(email: string, password: string) {
     try {
       const userData = await apiRequest("POST", "/api/auth/login", { email, password });
       setUser(userData);
+      saveUser(userData);
     } catch (error) {
       console.error("Login failed:", error);
       throw error;
@@ -57,6 +93,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     try {
       const userData = await apiRequest("POST", "/api/auth/register", { email, password });
       setUser(userData);
+      saveUser(userData);
     } catch (error) {
       console.error("Registration failed:", error);
       throw error;
@@ -66,11 +103,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   async function logout() {
     try {
       await apiRequest("POST", "/api/auth/logout");
-      setUser(null);
-    } catch (error) {
-      console.error("Logout failed:", error);
-      throw error;
-    }
+    } catch {}
+    setUser(null);
+    clearUser();
   }
 
   async function linkAccount(email: string, password: string) {
@@ -82,6 +117,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         password,
       });
       setUser(userData);
+      saveUser(userData);
     } catch (error) {
       console.error("Account linking failed:", error);
       throw error;
@@ -92,6 +128,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     try {
       const userData = await apiRequest("POST", "/api/auth/anonymous");
       setUser(userData);
+      saveUser(userData);
     } catch (error) {
       console.error("Failed to create anonymous session:", error);
       throw error;
@@ -102,7 +139,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     try {
       await apiRequest("POST", `/api/users/${user.id}/complete-onboarding`);
-      setUser({ ...user, onboardingComplete: 1 });
+      const updated = { ...user, onboardingComplete: 1 };
+      setUser(updated);
+      saveUser(updated);
     } catch (error) {
       console.error("Failed to complete onboarding:", error);
       throw error;

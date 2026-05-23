@@ -10,7 +10,10 @@ module.exports = {
       DB_PASSWORD: '471a1f5e3d41055fff736c8aa76fad658b276fb7e75f5a34',
       DB_NAME: 'watchlist',
       NODE_ENV: 'production',
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY || ''
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+      TMDB_API_KEY: process.env.TMDB_API_KEY || '',
+      GUARDIAN_API_KEY: process.env.GUARDIAN_API_KEY || '',
+      ADMIN_SECRET: process.env.ADMIN_SECRET || ''
     }
   }]
 };

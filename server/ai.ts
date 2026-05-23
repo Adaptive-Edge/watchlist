@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { NewRelease, GuardianReview } from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -14,13 +15,17 @@ interface UserProfile {
   rejected: Array<{ title: string; reason?: string | null }>;
 }
 
-interface Recommendation {
+export interface Recommendation {
   title: string;
   year: number;
   mediaType: "film" | "tv";
   reason: string;
   imdbScore: number | null;
   rottenTomatoesScore: number | null;
+  matchScore: number | null;
+  genres: string[];
+  posterPath?: string | null;
+  trailerUrl?: string | null;
 }
 
 export async function generateRecommendations(
@@ -45,7 +50,9 @@ Always respond with valid JSON in this exact format:
       "mediaType": "film" or "tv",
       "reason": "Brief explanation of why this matches their taste",
       "imdbScore": 8.5,
-      "rottenTomatoesScore": 92
+      "rottenTomatoesScore": 92,
+      "matchScore": 87,
+      "genres": ["Drama", "Thriller"]
     }
   ]
 }
@@ -53,6 +60,8 @@ Always respond with valid JSON in this exact format:
 For scores:
 - imdbScore: IMDB rating out of 10 (e.g., 8.5). Use null if unknown.
 - rottenTomatoesScore: Rotten Tomatoes critic score as percentage (e.g., 92 for 92%). Use null if unknown.
+- matchScore: How well this matches the user's specific taste profile, as a percentage 60-99. Higher = stronger match to their stated preferences, viewing history, and favourites.
+- genres: Array of 1-3 genre strings (e.g. ["Drama", "Thriller", "Crime"]).
 
 Provide 3-5 recommendations. Be specific about why each recommendation fits the user's profile.
 Focus on lesser-known gems alongside popular choices. Consider both what they love AND what they've disliked to refine suggestions.`,
@@ -137,13 +146,15 @@ function buildPrompt(profile: UserProfile, userRequest?: string): string {
     sections.push(`RECENTLY DISLIKED: ${dislikedHistory.map((h) => h.title).join(", ")}`);
   }
 
-  // Rejected titles
+  // Rejected titles with reasons
   if (profile.rejected.length > 0) {
-    const rejectedList = profile.rejected
-      .slice(0, 10)
-      .map((r) => r.title)
-      .join(", ");
-    sections.push(`ALREADY REJECTED (don't suggest): ${rejectedList}`);
+    const withReasons = profile.rejected
+      .slice(0, 15)
+      .map((r) => r.reason && r.reason !== "Not interested"
+        ? `${r.title} (reason: ${r.reason})`
+        : r.title)
+      .join("; ");
+    sections.push(`ALREADY REJECTED (don't suggest these, and learn from the reasons to avoid similar titles): ${withReasons}`);
   }
 
   // Already watched (don't suggest again)
@@ -280,4 +291,214 @@ function buildInsightsPrompt(profile: UserProfile): string {
   sections.push(`STATS: ${profile.favourites.length} favourites, ${profile.history.length} watched, ${profile.rejected.length} rejected`);
 
   return sections.join("\n");
+}
+
+// === New For You: Score releases against user taste ===
+
+export interface ScoredPick {
+  tmdbId: number;
+  relevanceScore: number;
+  reason: string;
+}
+
+export async function scoreReleasesForUser(
+  profile: UserProfile,
+  releases: NewRelease[],
+  excludeTitles: string[],
+  guidance?: string
+): Promise<ScoredPick[]> {
+  const tasteProfile = buildPrompt(profile);
+  const excludeSet = new Set(excludeTitles.map((t) => t.toLowerCase()));
+
+  const candidates = releases.filter(
+    (r) => !excludeSet.has(r.title.toLowerCase())
+  );
+
+  if (candidates.length === 0) return [];
+
+  const releasesBlock = candidates
+    .map((r, i) => {
+      const genres = Array.isArray(r.genres) ? (r.genres as string[]).join(", ") : "";
+      const cast = Array.isArray(r.cast) ? (r.cast as string[]).join(", ") : "";
+      const directors = Array.isArray(r.directors) ? (r.directors as string[]).join(", ") : "";
+      const guardian = r.guardianRating ? `Guardian: ${r.guardianRating}/5` : "";
+      return `${i + 1}. [TMDB:${r.tmdbId}] "${r.title}" (${r.year || "?"}, ${r.mediaType}) — Genres: ${genres} | Cast: ${cast} | Directors: ${directors} | TMDB: ${r.tmdbRating}/10 ${guardian}\n   ${(r.overview || "").substring(0, 150)}`;
+    })
+    .join("\n");
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `You are scoring new film and TV releases against a user's taste profile. For each release that's a good match (score 60+), provide a relevanceScore (1-100) and a short personalised reason explaining why they'd enjoy it.
+
+Respond with valid JSON:
+{
+  "picks": [
+    { "tmdbId": 12345, "titleMatch": "Exact title from the candidate list", "relevanceScore": 85, "reason": "Brief personalised reason about this title" }
+  ]
+}
+
+Rules:
+- Only include titles scoring 60 or above
+- Return maximum 10 picks, sorted by score descending
+- Consider: genre match, actor/director overlap, mood alignment, similarity to favourites
+- Titles with Guardian 4-5 star ratings are critically acclaimed — give them a +10 scoring boost as they represent quality-vetted content. Guardian 3-star titles get a +5 boost.
+- "titleMatch" MUST be the exact title of the candidate you are scoring, copied verbatim from the candidate list. This is a self-check — it must agree with the tmdbId.
+- The "reason" must describe THIS candidate (the one identified by tmdbId/titleMatch). NEVER write "In '[Other Film]', ..." where [Other Film] is anything other than the candidate itself.
+- If comparing to one of the user's favourites, phrase it as "Like your favourite [X], this one ..." — never put the favourite in the subject position.
+- The "reason" should be personal — reference their specific tastes, not generic praise. If the candidate has a Guardian rating, mention it (e.g., "Guardian 5-star reviewed").
+- Be selective — a mediocre match at 65 is less useful than no match`,
+      },
+      {
+        role: "user",
+        content: `USER TASTE PROFILE:\n${tasteProfile}${guidance ? `\n\nUSER GUIDANCE (apply this as a strong filter on top of their taste profile):\n"${guidance}"` : ""}\n\nNEW RELEASES TO SCORE:\n${releasesBlock}`,
+      },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.5,
+  });
+
+  const content = response.choices[0].message.content;
+  if (!content) return [];
+
+  const parsed = JSON.parse(content);
+  const rawPicks: Array<ScoredPick & { titleMatch?: string }> = parsed.picks || [];
+
+  // Defensive filter: drop picks where the AI's titleMatch doesn't agree with
+  // the title we provided for that tmdbId, and drop picks whose reason opens by
+  // naming a different film ("In '[Other]', ...") — both are hallucination signals.
+  const titleByTmdbId = new Map(candidates.map((r) => [r.tmdbId, r.title.toLowerCase()]));
+  const validPicks: ScoredPick[] = [];
+  for (const pick of rawPicks) {
+    const expected = titleByTmdbId.get(pick.tmdbId);
+    if (!expected) continue;
+    if (pick.titleMatch && pick.titleMatch.toLowerCase().trim() !== expected) {
+      console.warn(
+        `[ai] Dropping pick: titleMatch "${pick.titleMatch}" != expected "${expected}" (tmdbId=${pick.tmdbId})`
+      );
+      continue;
+    }
+    const reasonOpener = /^\s*in\s+['"“]([^'"”]+)['"”]/i.exec(pick.reason || "");
+    if (reasonOpener && reasonOpener[1].toLowerCase().trim() !== expected) {
+      console.warn(
+        `[ai] Dropping pick: reason opens with "${reasonOpener[1]}" but candidate is "${expected}" (tmdbId=${pick.tmdbId})`
+      );
+      continue;
+    }
+    validPicks.push({
+      tmdbId: pick.tmdbId,
+      relevanceScore: pick.relevanceScore,
+      reason: pick.reason,
+    });
+  }
+  return validPicks;
+}
+
+// === Score Guardian archive reviews against user taste ===
+
+export interface GuardianScoredPick {
+  reviewId: string;
+  relevanceScore: number;
+  reason: string;
+}
+
+export async function scoreGuardianArchiveForUser(
+  profile: UserProfile,
+  reviews: GuardianReview[],
+  excludeTitles: string[],
+  guidance?: string
+): Promise<GuardianScoredPick[]> {
+  const tasteProfile = buildPrompt(profile);
+  const excludeSet = new Set(excludeTitles.map((t) => t.toLowerCase()));
+
+  const candidates = reviews.filter((r) => !excludeSet.has(r.title.toLowerCase()));
+  if (candidates.length === 0) return [];
+
+  // Keep the candidate list bounded so the context stays reasonable. Prefer
+  // recent + higher-rated reviews when trimming.
+  const ranked = [...candidates].sort((a, b) => {
+    const ar = (a.starRating || 0) * 10 + (a.publishedDate || "").localeCompare(b.publishedDate || "");
+    const br = (b.starRating || 0) * 10;
+    return br - ar;
+  });
+  const trimmed = ranked.slice(0, 80);
+
+  const block = trimmed
+    .map((r, i) => {
+      const genres = Array.isArray(r.genres) ? (r.genres as string[]).join(", ") : "";
+      const cast = Array.isArray(r.cast) ? (r.cast as string[]).join(", ") : "";
+      const directors = Array.isArray(r.directors) ? (r.directors as string[]).join(", ") : "";
+      const stars = r.starRating ? `Guardian: ${r.starRating}/5` : "";
+      const tmdb = r.tmdbRating ? `TMDB: ${r.tmdbRating}/10` : "";
+      return `${i + 1}. [ID:${r.id}] "${r.title}" (${r.year || "?"}, ${r.mediaType}) — ${stars} ${tmdb} | Genres: ${genres} | Cast: ${cast} | Directors: ${directors}\n   ${(r.excerpt || "").substring(0, 200)}`;
+    })
+    .join("\n");
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `You are scoring Guardian-reviewed films and TV from the last 12 months against a user's taste profile. For each candidate that's a strong match (score 60+), provide a relevanceScore (1-100) and a short personalised reason.
+
+Respond with valid JSON:
+{
+  "picks": [
+    { "reviewId": "<id>", "titleMatch": "Exact title from the candidate", "relevanceScore": 85, "reason": "Brief personalised reason about this title" }
+  ]
+}
+
+Rules:
+- Only include titles scoring 60 or above
+- Return maximum 12 picks, sorted by score descending
+- Consider: genre match, actor/director overlap, mood alignment, similarity to favourites
+- Titles with Guardian 4-5 stars get a +10 boost; 3-star titles get +5
+- "titleMatch" MUST be the exact candidate title, copied verbatim. It must agree with the reviewId.
+- "reason" must describe THIS candidate (identified by reviewId/titleMatch). NEVER write "In '[Other Film]', ..." — never put a different film as the subject.
+- If comparing to a user favourite, phrase it as "Like your favourite [X], this one ..." — never put the favourite in the subject.
+- If a title has a Guardian star rating, mention it.
+- Be selective — a mediocre match at 65 is less useful than no match.`,
+      },
+      {
+        role: "user",
+        content: `USER TASTE PROFILE:\n${tasteProfile}${guidance ? `\n\nUSER GUIDANCE:\n"${guidance}"` : ""}\n\nGUARDIAN REVIEWS TO SCORE:\n${block}`,
+      },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.5,
+  });
+
+  const content = response.choices[0].message.content;
+  if (!content) return [];
+
+  const parsed = JSON.parse(content);
+  const raw: Array<GuardianScoredPick & { titleMatch?: string }> = parsed.picks || [];
+
+  const titleById = new Map(trimmed.map((r) => [r.id, r.title.toLowerCase()]));
+  const valid: GuardianScoredPick[] = [];
+  for (const pick of raw) {
+    const expected = titleById.get(pick.reviewId);
+    if (!expected) continue;
+    if (pick.titleMatch && pick.titleMatch.toLowerCase().trim() !== expected) {
+      console.warn(
+        `[ai] Dropping guardian pick: titleMatch "${pick.titleMatch}" != expected "${expected}" (id=${pick.reviewId})`
+      );
+      continue;
+    }
+    const opener = /^\s*in\s+['"“]([^'"”]+)['"”]/i.exec(pick.reason || "");
+    if (opener && opener[1].toLowerCase().trim() !== expected) {
+      console.warn(
+        `[ai] Dropping guardian pick: reason opens with "${opener[1]}" but candidate is "${expected}" (id=${pick.reviewId})`
+      );
+      continue;
+    }
+    valid.push({
+      reviewId: pick.reviewId,
+      relevanceScore: pick.relevanceScore,
+      reason: pick.reason,
+    });
+  }
+  return valid;
 }

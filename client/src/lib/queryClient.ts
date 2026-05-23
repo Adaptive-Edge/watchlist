@@ -1,6 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { API_BASE } from "./config";
 
-const API_PREFIX = "/watchlist";
+const API_PREFIX = API_BASE;
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
