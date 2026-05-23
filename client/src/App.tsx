@@ -4,6 +4,7 @@ import { queryClient } from "@/lib/queryClient";
 import { ROUTER_BASE } from "@/lib/config";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useTVNavigation } from "@/hooks/use-tv-navigation";
 import Home from "@/pages/home";
 import NotFound from "@/pages/not-found";
 
@@ -17,6 +18,7 @@ function AppRouter() {
 }
 
 function App() {
+  useTVNavigation();
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
