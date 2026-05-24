@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { isTV } from "@/lib/tv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -460,6 +460,17 @@ function GuardianCardShell({
   const [reviewOpen, setReviewOpen] = useState(false);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [showWatchedOptions, setShowWatchedOptions] = useState(false);
+  const reviewOpenedAt = useRef(0);
+
+  const openReview = () => {
+    reviewOpenedAt.current = Date.now();
+    setReviewOpen(true);
+  };
+
+  // Guard: ignore dialog button clicks within 500ms of the dialog opening.
+  // Android TV fires a ghost event on the auto-focused dialog button from
+  // the same D-pad OK press that opened the dialog.
+  const dialogGuard = () => isTV() && Date.now() - reviewOpenedAt.current < 500;
   const posterUrl = item.posterPath
     ? `${TMDB_IMAGE_BASE}/w300${item.posterPath}`
     : null;
@@ -477,8 +488,8 @@ function GuardianCardShell({
         className={`bg-card border border-border shadow-md cursor-pointer hover:border-accent/40 transition-all duration-500 ${
           celebrating ? "scale-[1.02] shadow-[0_0_30px_rgba(241,108,95,0.4)]" : ""
         }`}
-        onClick={() => setReviewOpen(true)}
-        onKeyDown={(e) => { if (e.key === 'Enter') setReviewOpen(true); }}
+        onClick={openReview}
+        onKeyDown={(e) => { if (e.key === 'Enter') openReview(); }}
       >
         <CardContent className="p-3 relative overflow-visible">
           {celebrating && (
@@ -689,7 +700,11 @@ function GuardianCardShell({
       </Card>
 
       <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
-        <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-hidden flex flex-col" aria-describedby={undefined}>
+        <DialogContent
+        className="sm:max-w-xl max-h-[80vh] overflow-hidden flex flex-col"
+        aria-describedby={undefined}
+        onOpenAutoFocus={(e) => { if (isTV()) e.preventDefault(); }}
+      >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <span>{item.title}</span>
@@ -722,13 +737,13 @@ function GuardianCardShell({
           </div>
           <div className="pt-3 border-t border-border/50 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Button size="sm" onClick={() => onWatchlist()} disabled={!!busy || !!done} className="gap-1">
+              <Button size="sm" onClick={() => { if (dialogGuard()) return; onWatchlist(); }} disabled={!!busy || !!done} className="gap-1">
                 {busy === "watchlist" ? <Loader2 className="w-4 h-4 animate-spin" /> : done === "watchlist" ? <>Added</> : <><Plus className="w-4 h-4" /> Watchlist</>}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => onWatched()} disabled={!!busy || !!done} className="gap-1">
+              <Button size="sm" variant="outline" onClick={() => { if (dialogGuard()) return; onWatched(); }} disabled={!!busy || !!done} className="gap-1">
                 {busy === "watched" ? <Loader2 className="w-4 h-4 animate-spin" /> : done === "watched" ? <>Watched</> : <><Eye className="w-4 h-4" /> Watched</>}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => onDismiss()} disabled={!!busy || !!done} aria-label="Dismiss">
+              <Button size="sm" variant="ghost" onClick={() => { if (dialogGuard()) return; onDismiss(); }} disabled={!!busy || !!done} aria-label="Dismiss">
                 {busy === "dismiss" ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
               </Button>
             </div>
