@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { isTV } from "@/lib/tv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -580,7 +581,7 @@ function GuardianCardShell({
                   {item.trailerKey && (
                     <button
                       tabIndex={-1}
-                      onClick={(e) => { e.stopPropagation(); setTrailerOpen(true); }}
+                      onClick={(e) => { e.stopPropagation(); if (isTV()) return; setTrailerOpen(true); }}
                       className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
                     >
                       <Play className="w-2.5 h-2.5" /> Trailer
@@ -596,7 +597,7 @@ function GuardianCardShell({
                   <span className="text-xs text-muted-foreground mr-1">Rate:</span>
                   <button
                     tabIndex={-1}
-                    onClick={() => pickRating("loved")}
+                    onClick={() => { if (isTV()) return; pickRating("loved"); }}
                     disabled={!!busy}
                     className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-muted hover:bg-muted/80 disabled:opacity-40"
                   >
@@ -604,7 +605,7 @@ function GuardianCardShell({
                   </button>
                   <button
                     tabIndex={-1}
-                    onClick={() => pickRating("ok")}
+                    onClick={() => { if (isTV()) return; pickRating("ok"); }}
                     disabled={!!busy}
                     className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-muted hover:bg-muted/80 disabled:opacity-40"
                   >
@@ -612,7 +613,7 @@ function GuardianCardShell({
                   </button>
                   <button
                     tabIndex={-1}
-                    onClick={() => pickRating("disliked")}
+                    onClick={() => { if (isTV()) return; pickRating("disliked"); }}
                     disabled={!!busy}
                     className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-muted hover:bg-muted/80 disabled:opacity-40"
                   >
@@ -620,7 +621,7 @@ function GuardianCardShell({
                   </button>
                   <button
                     tabIndex={-1}
-                    onClick={() => setShowWatchedOptions(false)}
+                    onClick={() => { if (isTV()) return; setShowWatchedOptions(false); }}
                     className="text-muted-foreground hover:text-foreground ml-0.5"
                     aria-label="Cancel"
                   >
@@ -631,7 +632,7 @@ function GuardianCardShell({
                 <div className="flex items-center gap-3 mt-2 flex-wrap">
                   <button
                     tabIndex={-1}
-                    onClick={(e) => { e.stopPropagation(); onWatchlist(e); }}
+                    onClick={(e) => { e.stopPropagation(); if (isTV()) return; onWatchlist(e); }}
                     disabled={!!busy || !!done}
                     className={`inline-flex items-center gap-1 text-xs ${
                       done === "watchlist"
@@ -649,7 +650,7 @@ function GuardianCardShell({
                   </button>
                   <button
                     tabIndex={-1}
-                    onClick={(e) => { e.stopPropagation(); setShowWatchedOptions(true); }}
+                    onClick={(e) => { e.stopPropagation(); if (isTV()) return; setShowWatchedOptions(true); }}
                     disabled={!!busy || !!done}
                     className={`inline-flex items-center gap-1 text-xs ${
                       done === "watched"
@@ -667,7 +668,7 @@ function GuardianCardShell({
                   </button>
                   <button
                     tabIndex={-1}
-                    onClick={(e) => { e.stopPropagation(); onDismiss(e); }}
+                    onClick={(e) => { e.stopPropagation(); if (isTV()) return; onDismiss(e); }}
                     disabled={!!busy || !!done}
                     aria-label="Dismiss"
                     className={`inline-flex items-center text-muted-foreground hover:text-foreground disabled:opacity-40 ${

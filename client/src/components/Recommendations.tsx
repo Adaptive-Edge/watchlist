@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isTV } from "@/lib/tv";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { TrailerPlayer } from "@/components/TrailerPlayer";
@@ -382,7 +383,7 @@ function RecommendationCard({
             {trailerKey && (
               <button
                 tabIndex={-1}
-                onClick={() => setTrailerOpen(true)}
+                onClick={() => { if (isTV()) return; setTrailerOpen(true); }}
                 className="inline-flex items-center gap-1 text-xs text-[#93b6ee] hover:underline mb-3"
               >
                 <Play className="w-3 h-3" /> Watch trailer
@@ -395,7 +396,7 @@ function RecommendationCard({
                 <span className="text-xs text-muted-foreground">Rate it:</span>
                 <button
                   tabIndex={-1}
-                  onClick={() => onWatched("loved")}
+                  onClick={() => { if (isTV()) return; onWatched("loved"); }}
                   disabled={loading}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors"
                 >
@@ -403,7 +404,7 @@ function RecommendationCard({
                 </button>
                 <button
                   tabIndex={-1}
-                  onClick={() => onWatched("ok")}
+                  onClick={() => { if (isTV()) return; onWatched("ok"); }}
                   disabled={loading}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors"
                 >
@@ -411,7 +412,7 @@ function RecommendationCard({
                 </button>
                 <button
                   tabIndex={-1}
-                  onClick={() => onWatched("disliked")}
+                  onClick={() => { if (isTV()) return; onWatched("disliked"); }}
                   disabled={loading}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors"
                 >
@@ -419,7 +420,7 @@ function RecommendationCard({
                 </button>
                 <button
                   tabIndex={-1}
-                  onClick={() => setShowWatchedOptions(false)}
+                  onClick={() => { if (isTV()) return; setShowWatchedOptions(false); }}
                   className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -429,7 +430,7 @@ function RecommendationCard({
               <div className="flex gap-2 flex-wrap">
                 <button
                   tabIndex={-1}
-                  onClick={onAddToWatchlist}
+                  onClick={() => { if (isTV()) return; onAddToWatchlist(); }}
                   disabled={loading}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[#93b6ee]/30 bg-[#93b6ee]/10 text-[#93b6ee] hover:bg-[#93b6ee]/20 disabled:opacity-50 transition-colors"
                 >
@@ -442,7 +443,7 @@ function RecommendationCard({
                 </button>
                 <button
                   tabIndex={-1}
-                  onClick={() => setShowWatchedOptions(true)}
+                  onClick={() => { if (isTV()) return; setShowWatchedOptions(true); }}
                   disabled={loading}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-50 transition-colors"
                 >
@@ -450,7 +451,7 @@ function RecommendationCard({
                 </button>
                 <button
                   tabIndex={-1}
-                  onClick={onReject}
+                  onClick={() => { if (isTV()) return; onReject(); }}
                   disabled={loading}
                   className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
                 >
