@@ -11,7 +11,13 @@ const FOCUSABLE = [
 
 function getFocusable(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    el => el.offsetParent !== null
+    el => {
+      if (el.offsetParent === null) return false;
+      // Skip interactive elements nested inside a focusable container (e.g. action buttons inside a card tile).
+      // The container itself is focusable; Enter on it opens the detail overlay where buttons become reachable.
+      if (el.parentElement?.closest('[tabindex="0"]')) return false;
+      return true;
+    }
   );
 }
 
