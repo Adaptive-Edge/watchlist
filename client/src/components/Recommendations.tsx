@@ -289,6 +289,7 @@ function RecommendationCard({
         className={`relative bg-card border border-border rounded-xl overflow-hidden transition-all duration-500 ${
           celebrating ? "scale-[1.02] shadow-[0_0_30px_rgba(241,108,95,0.4)]" : ""
         }`}
+        onKeyDown={(e) => { if (e.key === 'Enter' && trailerKey) setTrailerOpen(true); }}
       >
         {/* Celebration sparkles */}
         {celebrating && (

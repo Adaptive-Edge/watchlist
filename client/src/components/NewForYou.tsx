@@ -477,6 +477,7 @@ function GuardianCardShell({
           celebrating ? "scale-[1.02] shadow-[0_0_30px_rgba(241,108,95,0.4)]" : ""
         }`}
         onClick={() => setReviewOpen(true)}
+        onKeyDown={(e) => { if (e.key === 'Enter') setReviewOpen(true); }}
       >
         <CardContent className="p-3 relative overflow-visible">
           {celebrating && (
@@ -1009,25 +1010,20 @@ function CarouselOverlay({
         <ChevronRight className="w-7 h-7" />
       </button>
 
-      {/* Main content — stacked when trailer plays, side-by-side for poster */}
-      <div className={`relative z-10 w-full mx-auto overflow-y-auto max-h-screen ${
-        trailerOpen && item.trailerKey
-          ? "flex flex-col gap-5 max-w-5xl px-10 py-10"
-          : "flex flex-col md:flex-row items-center md:items-start gap-8 max-w-4xl px-16 md:px-24 py-16"
-      }`}>
+      {/* Fullscreen trailer via TrailerPlayer */}
+      {trailerOpen && item.trailerKey && (
+        <TrailerPlayer
+          trailerKey={item.trailerKey}
+          title={item.title}
+          onClose={() => setTrailerOpen(false)}
+        />
+      )}
 
-        {/* Inline trailer or poster */}
-        {trailerOpen && item.trailerKey ? (
-          <div className="w-full aspect-video rounded-xl overflow-hidden shadow-2xl">
-            <iframe
-              src={`https://www.youtube.com/embed/${item.trailerKey}?autoplay=1`}
-              title={`${item.title} trailer`}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="w-full h-full"
-            />
-          </div>
-        ) : (
+      {/* Main content — always side-by-side poster layout */}
+      <div className="relative z-10 w-full mx-auto overflow-y-auto max-h-screen flex flex-col md:flex-row items-center md:items-start gap-8 max-w-4xl px-16 md:px-24 py-16">
+
+        {/* Poster */}
+        {true && (
           <div className="shrink-0 self-center">
             {posterUrl ? (
               <div className="relative">
@@ -1055,7 +1051,7 @@ function CarouselOverlay({
         )}
 
         {/* Info block */}
-        <div className={`flex-1 text-center ${trailerOpen && item.trailerKey ? "" : "md:text-left md:py-6"}`}>
+        <div className="flex-1 text-center md:text-left md:py-6">
           <h2 className="text-white text-2xl md:text-3xl font-semibold leading-tight mb-2">
             {item.title}
           </h2>
@@ -1111,11 +1107,11 @@ function CarouselOverlay({
             <div className="flex items-center justify-center md:justify-start gap-4 mb-6">
               {item.trailerKey && (
                 <button
-                  onClick={() => setTrailerOpen((v) => !v)}
+                  onClick={() => setTrailerOpen(true)}
                   className="inline-flex items-center gap-1.5 text-sm text-[#93b6ee] hover:underline"
                 >
                   <Play className="w-3.5 h-3.5" />
-                  {trailerOpen ? "Hide trailer" : "Play trailer"}
+                  Play trailer
                 </button>
               )}
               {item.starRating != null && item.url && (
