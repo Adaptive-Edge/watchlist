@@ -42,8 +42,9 @@ function HomeContent() {
   useEffect(() => {
     if (!isTV) return;
     const attempt = (n = 0) => {
+      // Prefer card containers (tabindex="0" divs) over inner buttons — they appear first in DOM order
       const candidates = document.querySelectorAll<HTMLElement>(
-        '[data-tv-content] main button:not([disabled]), [data-tv-content] main [tabindex]:not([tabindex="-1"])'
+        '[data-tv-content] main [tabindex="0"], [data-tv-content] main button:not([disabled])'
       );
       const el = Array.from(candidates).find(el => el.offsetParent !== null);
       if (el) { el.focus(); return; }
@@ -66,7 +67,7 @@ function HomeContent() {
 
   const focusContent = (attempts = 0) => {
     const candidates = document.querySelectorAll<HTMLElement>(
-      '[data-tv-content] main button:not([disabled]), [data-tv-content] main [tabindex]:not([tabindex="-1"])'
+      '[data-tv-content] main [tabindex="0"], [data-tv-content] main button:not([disabled])'
     );
     const target = Array.from(candidates).find(el => el.offsetParent !== null);
     if (target) {
