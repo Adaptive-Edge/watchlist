@@ -38,13 +38,14 @@ function HomeContent() {
     return () => observer.disconnect();
   }, [isTV]);
 
-  // When TV mode activates, focus first content element (with retry for async content)
+  // When TV mode activates, focus first visible content element (with retry for async content)
   useEffect(() => {
     if (!isTV) return;
     const attempt = (n = 0) => {
-      const el = document.querySelector<HTMLElement>(
-        '[data-tv-content] button:not([disabled]), [data-tv-content] [tabindex]:not([tabindex="-1"])'
+      const candidates = document.querySelectorAll<HTMLElement>(
+        '[data-tv-content] main button:not([disabled]), [data-tv-content] main [tabindex]:not([tabindex="-1"])'
       );
+      const el = Array.from(candidates).find(el => el.offsetParent !== null);
       if (el) { el.focus(); return; }
       if (n < 15) setTimeout(() => attempt(n + 1), 100);
     };
@@ -64,9 +65,10 @@ function HomeContent() {
   ];
 
   const focusContent = (attempts = 0) => {
-    const target = document.querySelector<HTMLElement>(
-      '[data-tv-content] button:not([disabled]), [data-tv-content] [tabindex]:not([tabindex="-1"])'
+    const candidates = document.querySelectorAll<HTMLElement>(
+      '[data-tv-content] main button:not([disabled]), [data-tv-content] main [tabindex]:not([tabindex="-1"])'
     );
+    const target = Array.from(candidates).find(el => el.offsetParent !== null);
     if (target) {
       target.focus();
     } else if (attempts < 10) {
