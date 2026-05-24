@@ -381,6 +381,7 @@ function RecommendationCard({
             {/* Trailer link */}
             {trailerKey && (
               <button
+                tabIndex={-1}
                 onClick={() => setTrailerOpen(true)}
                 className="inline-flex items-center gap-1 text-xs text-[#93b6ee] hover:underline mb-3"
               >
@@ -393,6 +394,7 @@ function RecommendationCard({
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="text-xs text-muted-foreground">Rate it:</span>
                 <button
+                  tabIndex={-1}
                   onClick={() => onWatched("loved")}
                   disabled={loading}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors"
@@ -400,6 +402,7 @@ function RecommendationCard({
                   <Heart className="w-3.5 h-3.5 text-[#f16c5f] fill-[#f16c5f]" /> Loved it
                 </button>
                 <button
+                  tabIndex={-1}
                   onClick={() => onWatched("ok")}
                   disabled={loading}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors"
@@ -407,6 +410,7 @@ function RecommendationCard({
                   <Meh className="w-3.5 h-3.5 text-[#fec666]" /> OK
                 </button>
                 <button
+                  tabIndex={-1}
                   onClick={() => onWatched("disliked")}
                   disabled={loading}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors"
@@ -414,6 +418,7 @@ function RecommendationCard({
                   <ThumbsDown className="w-3.5 h-3.5 text-destructive" /> Didn't like
                 </button>
                 <button
+                  tabIndex={-1}
                   onClick={() => setShowWatchedOptions(false)}
                   className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
                 >
@@ -423,6 +428,7 @@ function RecommendationCard({
             ) : (
               <div className="flex gap-2 flex-wrap">
                 <button
+                  tabIndex={-1}
                   onClick={onAddToWatchlist}
                   disabled={loading}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[#93b6ee]/30 bg-[#93b6ee]/10 text-[#93b6ee] hover:bg-[#93b6ee]/20 disabled:opacity-50 transition-colors"
@@ -435,6 +441,7 @@ function RecommendationCard({
                   Watchlist
                 </button>
                 <button
+                  tabIndex={-1}
                   onClick={() => setShowWatchedOptions(true)}
                   disabled={loading}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-50 transition-colors"
@@ -442,6 +449,7 @@ function RecommendationCard({
                   <Eye className="w-3.5 h-3.5" /> Watched
                 </button>
                 <button
+                  tabIndex={-1}
                   onClick={onReject}
                   disabled={loading}
                   className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"

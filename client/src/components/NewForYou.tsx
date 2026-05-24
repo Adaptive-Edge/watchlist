@@ -579,6 +579,7 @@ function GuardianCardShell({
                   )}
                   {item.trailerKey && (
                     <button
+                      tabIndex={-1}
                       onClick={(e) => { e.stopPropagation(); setTrailerOpen(true); }}
                       className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
                     >
@@ -594,6 +595,7 @@ function GuardianCardShell({
                 >
                   <span className="text-xs text-muted-foreground mr-1">Rate:</span>
                   <button
+                    tabIndex={-1}
                     onClick={() => pickRating("loved")}
                     disabled={!!busy}
                     className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-muted hover:bg-muted/80 disabled:opacity-40"
@@ -601,6 +603,7 @@ function GuardianCardShell({
                     <Heart className="w-3 h-3 text-[#f16c5f] fill-[#f16c5f]" /> Loved
                   </button>
                   <button
+                    tabIndex={-1}
                     onClick={() => pickRating("ok")}
                     disabled={!!busy}
                     className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-muted hover:bg-muted/80 disabled:opacity-40"
@@ -608,6 +611,7 @@ function GuardianCardShell({
                     <Meh className="w-3 h-3 text-[#fec666]" /> OK
                   </button>
                   <button
+                    tabIndex={-1}
                     onClick={() => pickRating("disliked")}
                     disabled={!!busy}
                     className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-muted hover:bg-muted/80 disabled:opacity-40"
@@ -615,6 +619,7 @@ function GuardianCardShell({
                     <ThumbsDown className="w-3 h-3 text-destructive" /> Nah
                   </button>
                   <button
+                    tabIndex={-1}
                     onClick={() => setShowWatchedOptions(false)}
                     className="text-muted-foreground hover:text-foreground ml-0.5"
                     aria-label="Cancel"
@@ -625,6 +630,7 @@ function GuardianCardShell({
               ) : (
                 <div className="flex items-center gap-3 mt-2 flex-wrap">
                   <button
+                    tabIndex={-1}
                     onClick={(e) => { e.stopPropagation(); onWatchlist(e); }}
                     disabled={!!busy || !!done}
                     className={`inline-flex items-center gap-1 text-xs ${
@@ -642,6 +648,7 @@ function GuardianCardShell({
                     )}
                   </button>
                   <button
+                    tabIndex={-1}
                     onClick={(e) => { e.stopPropagation(); setShowWatchedOptions(true); }}
                     disabled={!!busy || !!done}
                     className={`inline-flex items-center gap-1 text-xs ${
@@ -659,6 +666,7 @@ function GuardianCardShell({
                     )}
                   </button>
                   <button
+                    tabIndex={-1}
                     onClick={(e) => { e.stopPropagation(); onDismiss(e); }}
                     disabled={!!busy || !!done}
                     aria-label="Dismiss"
