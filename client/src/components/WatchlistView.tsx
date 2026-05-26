@@ -28,7 +28,8 @@ import {
   ChevronRight,
   LayoutGrid,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { isTV } from "@/lib/tv";
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 
@@ -501,6 +502,15 @@ function WatchlistItemCard({ item, onRemove, removing }: WatchlistItemCardProps)
   const [marking, setMarking] = useState(false);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const reviewOpenedAt = useRef(0);
+
+  const openReview = () => {
+    reviewOpenedAt.current = Date.now();
+    setShowRating(false);
+    setReviewOpen(true);
+  };
+
+  const dialogGuard = () => isTV() && Date.now() - reviewOpenedAt.current < 500;
 
   const release = item.release;
   const posterUrl = release?.posterPath
@@ -527,13 +537,12 @@ function WatchlistItemCard({ item, onRemove, removing }: WatchlistItemCardProps)
     }
   };
 
-  const hasDetail = !!(release?.guardianUrl || release?.guardianBody || release?.guardianExcerpt || item.recommendationReason);
-
   return (
     <>
       <Card
-        className={`bg-card border border-border shadow-md transition-all duration-200 ${hasDetail ? "cursor-pointer hover:border-accent/40" : ""}`}
-        onClick={() => hasDetail && setReviewOpen(true)}
+        tabIndex={0}
+        className="bg-card border border-border shadow-md cursor-pointer hover:border-accent/40 transition-all duration-200"
+        onClick={openReview}
       >
         <CardContent className="p-4">
           <div className="flex gap-4">
@@ -556,10 +565,10 @@ function WatchlistItemCard({ item, onRemove, removing }: WatchlistItemCardProps)
             )}
 
             <div className="flex-1 min-w-0">
-              {/* 1. Title */}
+              {/* Title */}
               <h3 className="font-semibold text-base leading-snug mb-1">{item.title}</h3>
 
-              {/* 2. Meta row */}
+              {/* Meta row */}
               <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground mb-2">
                 {item.year && <span>{item.year}</span>}
                 <span className="opacity-40">·</span>
@@ -584,14 +593,14 @@ function WatchlistItemCard({ item, onRemove, removing }: WatchlistItemCardProps)
                 )}
               </div>
 
-              {/* 3. Reason — the hook */}
+              {/* Reason */}
               {item.recommendationReason && (
                 <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2 mb-2">
                   {item.recommendationReason}
                 </p>
               )}
 
-              {/* 4. Genre pills */}
+              {/* Genre pills */}
               {genres.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-2">
                   {genres.slice(0, 3).map((genre) => (
@@ -602,26 +611,9 @@ function WatchlistItemCard({ item, onRemove, removing }: WatchlistItemCardProps)
                 </div>
               )}
 
-              {/* 5. Links */}
-              {(release?.trailerKey || release?.guardianUrl) && (
-                <div className="flex items-center gap-3 mb-2" onClick={(e) => e.stopPropagation()}>
-                  {release.trailerKey && (
-                    <button
-                      onClick={() => setTrailerOpen(true)}
-                      className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
-                    >
-                      <Play className="w-2.5 h-2.5" /> Trailer
-                    </button>
-                  )}
-                  {release.guardianUrl && (
-                    <span className="text-xs text-accent">Read review</span>
-                  )}
-                </div>
-              )}
-
-              {/* 6. Availability */}
+              {/* Availability */}
               {(!!release?.inCinemas || streaming.length > 0) && (
-                <div className="flex items-center gap-1.5 mb-2">
+                <div className="flex items-center gap-1.5">
                   {!!release?.inCinemas && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-accent/20 text-accent font-medium">
                       In cinemas
@@ -639,42 +631,6 @@ function WatchlistItemCard({ item, onRemove, removing }: WatchlistItemCardProps)
                   )}
                 </div>
               )}
-
-              {/* 7. Actions */}
-              {showRating ? (
-                <div className="flex flex-wrap gap-2 items-center" onClick={(e) => e.stopPropagation()}>
-                  <span className="text-xs text-muted-foreground">How was it?</span>
-                  <button onClick={() => handleMarkWatched("loved")} disabled={marking} className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors">
-                    <Heart className="w-3.5 h-3.5 text-[#f16c5f] fill-[#f16c5f]" /> Loved
-                  </button>
-                  <button onClick={() => handleMarkWatched("ok")} disabled={marking} className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors">
-                    <Meh className="w-3.5 h-3.5 text-[#fec666]" /> OK
-                  </button>
-                  <button onClick={() => handleMarkWatched("disliked")} disabled={marking} className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted/50 hover:bg-muted text-foreground disabled:opacity-50 transition-colors">
-                    <ThumbsDown className="w-3.5 h-3.5 text-destructive" /> Nah
-                  </button>
-                  <button onClick={() => setShowRating(false)} className="p-1 text-muted-foreground hover:text-foreground">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
-                  {release?.imdbId && (
-                    <button
-                      onClick={() => window.open(`stremio:///detail/${item.mediaType === "film" ? "movie" : "series"}/${release.imdbId}/${release.imdbId}`, "_self")}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-[#93b6ee]/40 bg-[#93b6ee]/10 text-[#93b6ee] hover:bg-[#93b6ee]/20 transition-colors"
-                    >
-                      <Play className="w-3.5 h-3.5" /> Stremio
-                    </button>
-                  )}
-                  <button onClick={() => setShowRating(true)} disabled={marking} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-50 transition-colors">
-                    <Eye className="w-3.5 h-3.5" /> Watched
-                  </button>
-                  <button onClick={onRemove} disabled={removing} className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </CardContent>
@@ -689,59 +645,87 @@ function WatchlistItemCard({ item, onRemove, removing }: WatchlistItemCardProps)
         />
       )}
 
-      {/* Detail dialog — guardian review or recommendation reason */}
-      {hasDetail && (
-        <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
-          <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-hidden flex flex-col" aria-describedby={undefined}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <span>{item.title}</span>
-                {release?.guardianRating && (
-                  <div className="flex items-center gap-0.5">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className={`w-4 h-4 ${
-                          i < release.guardianRating!
-                            ? "text-[#fec666] fill-[#fec666]"
-                            : "text-muted-foreground"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                )}
-              </DialogTitle>
-            </DialogHeader>
+      {/* Action dialog — same pattern as Discover */}
+      <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+        <DialogContent
+          className="sm:max-w-xl max-h-[80vh] overflow-hidden flex flex-col"
+          aria-describedby={undefined}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span>{item.title}</span>
+              {release?.guardianRating && (
+                <div className="flex items-center gap-0.5">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className={`w-4 h-4 ${i < release.guardianRating! ? "text-[#fec666] fill-[#fec666]" : "text-muted-foreground"}`} />
+                  ))}
+                </div>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Review text if available */}
+          {(release?.guardianBody || release?.guardianExcerpt || item.recommendationReason) && (
             <div className="overflow-y-auto flex-1 pr-2 space-y-3">
               {release?.guardianBody ? (
-                <div className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
-                  {release.guardianBody}
-                </div>
+                <div className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">{release.guardianBody}</div>
               ) : release?.guardianExcerpt ? (
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {release.guardianExcerpt}
-                </p>
-              ) : item.recommendationReason ? (
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {item.recommendationReason}
-                </p>
-              ) : null}
+                <p className="text-sm leading-relaxed text-muted-foreground">{release.guardianExcerpt}</p>
+              ) : (
+                <p className="text-sm leading-relaxed text-muted-foreground">{item.recommendationReason}</p>
+              )}
             </div>
-            {release?.guardianUrl && (
-              <div className="pt-3 border-t border-border/50">
-                <a
-                  href={release.guardianUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                >
-                  View on theguardian.com <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
+          )}
+
+          {release?.guardianUrl && (
+            <div className="pb-2">
+              <a href={release.guardianUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                View on theguardian.com <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="pt-3 border-t border-border/50 flex flex-col gap-2">
+            {showRating ? (
+              <>
+                <p className="text-sm text-muted-foreground">How was it?</p>
+                <Button size="sm" autoFocus onClick={() => { if (dialogGuard()) return; handleMarkWatched("loved"); }} disabled={!!marking} className="gap-1 justify-start">
+                  <Heart className="w-3.5 h-3.5" /> Loved
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => { if (dialogGuard()) return; handleMarkWatched("ok"); }} disabled={!!marking} className="gap-1 justify-start">
+                  <Meh className="w-3.5 h-3.5" /> OK
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => { if (dialogGuard()) return; handleMarkWatched("disliked"); }} disabled={!!marking} className="gap-1 justify-start">
+                  <ThumbsDown className="w-3.5 h-3.5" /> Nah
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { if (dialogGuard()) return; setShowRating(false); }} className="gap-1 justify-start">
+                  <X className="w-3.5 h-3.5" /> Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                {release?.trailerKey && (
+                  <Button size="sm" variant="outline" onClick={() => { if (dialogGuard()) return; setReviewOpen(false); setTrailerOpen(true); }} className="gap-1 justify-start">
+                    <Play className="w-3.5 h-3.5" /> Trailer
+                  </Button>
+                )}
+                {release?.imdbId && (
+                  <Button size="sm" variant="outline" onClick={() => { if (dialogGuard()) return; window.open(`stremio:///detail/${item.mediaType === "film" ? "movie" : "series"}/${release.imdbId}/${release.imdbId}`, "_self"); }} className="gap-1 justify-start border-[#93b6ee]/40 text-[#93b6ee] hover:bg-[#93b6ee]/20">
+                    <Play className="w-3.5 h-3.5" /> Stremio
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => { if (dialogGuard()) return; setShowRating(true); }} disabled={!!marking} className="gap-1 justify-start">
+                  <Eye className="w-3.5 h-3.5" /> Watched
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { if (dialogGuard()) return; setReviewOpen(false); onRemove(); }} disabled={removing} className="gap-1 justify-start text-destructive hover:text-destructive">
+                  <Trash2 className="w-3.5 h-3.5" /> Remove
+                </Button>
+              </>
             )}
-          </DialogContent>
-        </Dialog>
-      )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

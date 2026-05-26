@@ -337,7 +337,8 @@
 /* Block pointer events on inline card action buttons in TV mode.
    tabIndex=-1 stops spatial nav, but D-pad OK on Google TV remotes fires
    a positional click that bypasses tab order. pointer-events:none makes
-   those clicks fall through to the card container instead. */
+   those clicks fall through to the card container instead.
+   Buttons are activated via keydown handlers on the focused element instead. */
 .tv [tabindex="0"] button[tabindex="-1"],
 .tv [tabindex="0"] a[tabindex="-1"] {
   pointer-events: none;

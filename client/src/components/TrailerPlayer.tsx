@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect } from "react";
+import { App } from "@capacitor/app";
 
 interface TrailerPlayerProps {
   trailerKey: string;
@@ -8,16 +9,23 @@ interface TrailerPlayerProps {
 }
 
 export function TrailerPlayer({ trailerKey, title, onClose }: TrailerPlayerProps) {
-  // Close on back button / escape
   useEffect(() => {
+    // Keyboard escape (browser / web)
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" || e.key === "GoBack" || e.key === "BrowserBack") onClose();
     };
     window.addEventListener("keydown", handleKey);
-    // Lock body scroll
+
+    // Android hardware back button (TV remote back, phone back gesture)
+    let backListener: (() => void) | null = null;
+    App.addListener("backButton", () => onClose()).then(handle => {
+      backListener = () => handle.remove();
+    });
+
     document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", handleKey);
+      backListener?.();
       document.body.style.overflow = "";
     };
   }, [onClose]);
@@ -25,6 +33,8 @@ export function TrailerPlayer({ trailerKey, title, onClose }: TrailerPlayerProps
   return (
     <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
       <button
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        autoFocus
         onClick={onClose}
         className="absolute top-4 right-4 z-[101] w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
       >

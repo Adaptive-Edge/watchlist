@@ -63,7 +63,7 @@ export function HistoryView() {
 
       <div className="grid gap-2 lg:grid-cols-2 lg:gap-3">
         {history.map((item) => (
-          <Card key={item.id} className="bg-card border border-border shadow-md">
+          <Card key={item.id} tabIndex={0} className="bg-card border border-border shadow-md cursor-default">
             <CardContent className="p-3">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded bg-muted flex items-center justify-center shrink-0">

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { isTV } from "@/lib/tv";
+import { App } from "@capacitor/app";
+import { isTV, startVoice } from "@/lib/tv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  Mic,
 } from "lucide-react";
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
@@ -133,6 +135,7 @@ export function NewForYou() {
   const [showProviderFilter, setShowProviderFilter] = useState(false);
   const [guidance, setGuidance] = useState("");
   const [activeGuidance, setActiveGuidance] = useState("");
+  const [listening, setListening] = useState(false);
   const [carouselOpen, setCarouselOpen] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
 
@@ -245,11 +248,23 @@ export function NewForYou() {
             type="text"
             value={guidance}
             onChange={(e) => setGuidance(e.target.value)}
+            tabIndex={0}
             onKeyDown={(e) => e.key === "Enter" && refreshMutation.mutate()}
+            onClick={() => { if (isTV() && window.TVKeyboard) window.TVKeyboard.showKeyboard(); }}
+            onBlur={() => { if (isTV() && window.TVKeyboard) window.TVKeyboard.hideKeyboard(); }}
             placeholder="Steer your picks... e.g. 'more comedy', 'less dystopic', 'nothing too heavy'"
             className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-muted/50 border border-border focus:border-primary outline-none text-sm"
           />
         </div>
+        {isTV() && (
+          <button
+            onClick={() => startVoice((text) => { setGuidance(text); setListening(false); }, () => setListening(false)) && setListening(true)}
+            className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${listening ? "bg-primary text-primary-foreground animate-pulse" : "bg-muted/50 text-muted-foreground hover:text-foreground"}`}
+            aria-label="Voice input"
+          >
+            <Mic className="w-4 h-4" />
+          </button>
+        )}
         <Button
           onClick={() => refreshMutation.mutate()}
           disabled={refreshMutation.isPending}
@@ -277,6 +292,17 @@ export function NewForYou() {
         </div>
       )}
 
+      {/* Browse mode button — own row so D-pad Down from refresh lands here */}
+      {visibleUnifiedPicks.length > 0 && (
+        <button
+          onClick={() => { setCarouselIndex(0); setCarouselOpen(true); }}
+          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <LayoutGrid className="w-4 h-4" />
+          Browse all recommendations
+        </button>
+      )}
+
       {/* Filter row: media type + collapsible provider toggle */}
       <div className="flex items-center gap-2 flex-wrap">
         <FilterPill
@@ -294,16 +320,6 @@ export function NewForYou() {
           active={filter === "tv"}
           onClick={() => setFilter("tv")}
         />
-        {visibleUnifiedPicks.length > 0 && (
-          <button
-            onClick={() => { setCarouselIndex(0); setCarouselOpen(true); }}
-            className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-            title="Browse mode"
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            Browse
-          </button>
-        )}
         {providers.length > 0 && (
           <button
             onClick={() => setShowProviderFilter((v) => !v)}
@@ -903,6 +919,9 @@ function CarouselOverlay({
   const [done, setDone] = useState<null | "watchlist" | "watched" | "dismiss">(null);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
+  const firstActionRef = useRef<HTMLButtonElement>(null);
+  const actionsAreaRef = useRef<HTMLDivElement>(null);
+
   const visiblePicks = picks.filter((p) => !dismissedIds.has(p.id));
   const safeIndex = Math.min(index, Math.max(0, visiblePicks.length - 1));
   const pick = visiblePicks[safeIndex];
@@ -913,17 +932,19 @@ function CarouselOverlay({
     setBusy(null);
     setShowWatchedOptions(false);
     setTrailerOpen(false);
+    if (isTV()) {
+      const t = setTimeout(() => firstActionRef.current?.focus(), 100);
+      return () => clearTimeout(t);
+    }
   }, [pick?.id]);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowRight") setIndex((i) => Math.min(i + 1, total - 1));
-      else if (e.key === "ArrowLeft") setIndex((i) => Math.max(i - 1, 0));
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose, total]);
+    let backListener: (() => void) | null = null;
+    App.addListener("backButton", () => onClose()).then(handle => {
+      backListener = () => handle.remove();
+    });
+    return () => { backListener?.(); };
+  }, [onClose]);
 
   const invalidate = () => {
     if (!user) return;
@@ -986,7 +1007,21 @@ function CarouselOverlay({
   const matchPct = pick.relevanceScore;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft") {
+          e.stopPropagation();
+          setIndex((i) => Math.max(i - 1, 0));
+        } else if (e.key === "ArrowRight") {
+          e.stopPropagation();
+          setIndex((i) => Math.min(i + 1, total - 1));
+        } else if (e.key === "Escape") {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+    >
       {/* Blurred poster backdrop */}
       <div className="absolute inset-0">
         {posterUrl ? (
@@ -1003,6 +1038,13 @@ function CarouselOverlay({
       {/* Close */}
       <button
         onClick={onClose}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.stopPropagation();
+            const btn = actionsAreaRef.current?.querySelector<HTMLElement>('button:not([disabled])');
+            btn?.focus();
+          }
+        }}
         className="absolute top-4 right-4 z-20 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
         aria-label="Close"
       >
@@ -1014,8 +1056,9 @@ function CarouselOverlay({
         {safeIndex + 1} / {total}
       </div>
 
-      {/* Left arrow */}
+      {/* Left arrow — tabIndex=-1: D-pad Left navigates picks via keydown, not spatial nav */}
       <button
+        tabIndex={-1}
         onClick={() => setIndex((i) => Math.max(i - 1, 0))}
         disabled={safeIndex === 0}
         className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/40 text-white hover:bg-black/60 disabled:opacity-20 transition-colors"
@@ -1024,8 +1067,9 @@ function CarouselOverlay({
         <ChevronLeft className="w-7 h-7" />
       </button>
 
-      {/* Right arrow */}
+      {/* Right arrow — tabIndex=-1: same reason */}
       <button
+        tabIndex={-1}
         onClick={() => setIndex((i) => Math.min(i + 1, total - 1))}
         disabled={safeIndex === total - 1}
         className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-black/40 text-white hover:bg-black/60 disabled:opacity-20 transition-colors"
@@ -1126,58 +1170,70 @@ function CarouselOverlay({
             </div>
           )}
 
-          {/* Trailer / review links */}
-          {(item.trailerKey || (item.starRating != null && item.url)) && (
-            <div className="flex items-center justify-center md:justify-start gap-4 mb-6">
-              {item.trailerKey && (
-                <button
-                  onClick={() => setTrailerOpen(true)}
-                  className="inline-flex items-center gap-1.5 text-sm text-[#93b6ee] hover:underline"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                  Play trailer
-                </button>
-              )}
-              {item.starRating != null && item.url && (
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm text-[#93b6ee] hover:underline"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" /> Read review
-                </a>
-              )}
+          {/* Review link (non-TV) */}
+          {item.starRating != null && item.url && (
+            <div className="flex items-center justify-center md:justify-start gap-4 mb-4">
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-[#93b6ee] hover:underline"
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Read review
+              </a>
             </div>
           )}
 
-          {/* Action buttons */}
+          {/* Action buttons — vertical for reliable D-pad Up/Down navigation */}
+          <div ref={actionsAreaRef}>
           {showWatchedOptions ? (
-            <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
-              <span className="text-sm text-white/40 mr-1">Rate it:</span>
-              {(["loved", "ok", "disliked"] as const).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => { setShowWatchedOptions(false); doAction("watched", r); }}
-                  disabled={!!busy}
-                  className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-40"
-                >
-                  {r === "loved" && <Heart className="w-3.5 h-3.5 text-[#f16c5f] fill-[#f16c5f]" />}
-                  {r === "ok" && <Meh className="w-3.5 h-3.5 text-[#fec666]" />}
-                  {r === "disliked" && <ThumbsDown className="w-3.5 h-3.5 text-destructive" />}
-                  {r === "loved" ? "Loved" : r === "ok" ? "OK" : "Nah"}
-                </button>
-              ))}
-              <button onClick={() => setShowWatchedOptions(false)} className="text-white/40 hover:text-white">
-                <X className="w-4 h-4" />
+            <div className="flex flex-col gap-2">
+              <span className="text-sm text-white/40">Rate it:</span>
+              <button
+                autoFocus
+                onClick={() => { setShowWatchedOptions(false); doAction("watched", "loved"); }}
+                disabled={!!busy}
+                className="inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-40 justify-start"
+              >
+                <Heart className="w-3.5 h-3.5 text-[#f16c5f] fill-[#f16c5f]" /> Loved
+              </button>
+              <button
+                onClick={() => { setShowWatchedOptions(false); doAction("watched", "ok"); }}
+                disabled={!!busy}
+                className="inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-40 justify-start"
+              >
+                <Meh className="w-3.5 h-3.5 text-[#fec666]" /> OK
+              </button>
+              <button
+                onClick={() => { setShowWatchedOptions(false); doAction("watched", "disliked"); }}
+                disabled={!!busy}
+                className="inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-40 justify-start"
+              >
+                <ThumbsDown className="w-3.5 h-3.5 text-destructive" /> Nah
+              </button>
+              <button
+                onClick={() => setShowWatchedOptions(false)}
+                className="inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white/40 hover:text-white justify-start"
+              >
+                <X className="w-4 h-4" /> Cancel
               </button>
             </div>
           ) : (
-            <div className="flex items-center justify-center md:justify-start gap-3">
+            <div className="flex flex-col gap-2">
+              {item.trailerKey && (
+                <button
+                  ref={firstActionRef}
+                  onClick={() => setTrailerOpen(true)}
+                  className="inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full bg-white/10 text-white hover:bg-white/20 justify-start"
+                >
+                  <Play className="w-4 h-4" /> Play trailer
+                </button>
+              )}
               <button
+                ref={item.trailerKey ? undefined : firstActionRef}
                 onClick={() => doAction("watchlist")}
                 disabled={!!busy || !!done}
-                className={`inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full font-medium transition-colors ${
+                className={`inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full font-medium transition-colors justify-start ${
                   done === "watchlist"
                     ? "bg-[#93b6ee] text-white"
                     : "bg-primary text-white hover:bg-primary/90 disabled:opacity-40"
@@ -1192,7 +1248,7 @@ function CarouselOverlay({
               <button
                 onClick={() => setShowWatchedOptions(true)}
                 disabled={!!busy || !!done}
-                className={`inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full font-medium transition-colors ${
+                className={`inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full font-medium transition-colors justify-start ${
                   done === "watched"
                     ? "bg-[#93b6ee] text-white"
                     : "bg-white/10 text-white hover:bg-white/20 disabled:opacity-40"
@@ -1207,19 +1263,19 @@ function CarouselOverlay({
               <button
                 onClick={() => doAction("dismiss")}
                 disabled={!!busy || !!done}
-                aria-label="Dismiss"
-                className={`p-2.5 rounded-full transition-colors ${
+                className={`inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-full transition-colors justify-start ${
                   done === "dismiss" ? "text-[#93b6ee]" : "text-white/40 hover:text-white disabled:opacity-40"
                 }`}
               >
                 {busy === "dismiss" ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <X className="w-5 h-5" />
+                  <><X className="w-4 h-4" /> Dismiss</>
                 )}
               </button>
             </div>
           )}
+          </div>{/* actionsAreaRef */}
         </div>
       </div>
     </div>

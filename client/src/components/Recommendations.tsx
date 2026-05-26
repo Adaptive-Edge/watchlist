@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { isTV } from "@/lib/tv";
+import { isTV, startVoice } from "@/lib/tv";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { TrailerPlayer } from "@/components/TrailerPlayer";
@@ -19,6 +19,7 @@ import {
   Send,
   RefreshCw,
   Play,
+  Mic,
 } from "lucide-react";
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
@@ -54,6 +55,7 @@ export function Recommendations() {
   const { user } = useUser();
   const queryClient = useQueryClient();
   const [request, setRequest] = useState("");
+  const [listening, setListening] = useState(false);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [celebrating, setCelebrating] = useState<string | null>(null);
@@ -173,10 +175,22 @@ export function Recommendations() {
           type="text"
           value={request}
           onChange={(e) => setRequest(e.target.value)}
+          tabIndex={0}
           onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
+          onClick={() => { if (isTV() && window.TVKeyboard) window.TVKeyboard.showKeyboard(); }}
+          onBlur={() => { if (isTV() && window.TVKeyboard) window.TVKeyboard.hideKeyboard(); }}
           placeholder="Steer your picks… e.g. 'more comedy', 'less dark', 'nothing too heavy'"
           className="flex-1 px-4 py-3 rounded-lg bg-muted/50 border border-border focus:border-primary outline-none text-sm"
         />
+        {isTV() && (
+          <button
+            onClick={() => startVoice((text) => { setRequest(text); setListening(false); }, () => setListening(false)) && setListening(true)}
+            className={`shrink-0 w-11 h-11 rounded-lg flex items-center justify-center transition-colors ${listening ? "bg-primary text-primary-foreground animate-pulse" : "bg-muted/50 text-muted-foreground hover:text-foreground"}`}
+            aria-label="Voice input"
+          >
+            <Mic className="w-5 h-5" />
+          </button>
+        )}
         <Button onClick={handleGenerate} disabled={generateMutation.isPending} className="shrink-0">
           {generateMutation.isPending ? (
             <Loader2 className="w-5 h-5 animate-spin" />

@@ -42,9 +42,10 @@ function HomeContent() {
   useEffect(() => {
     if (!isTV) return;
     const attempt = (n = 0) => {
-      // Prefer card containers (tabindex="0" divs) over inner buttons — they appear first in DOM order
+      // Prefer card containers (tabindex="0" divs) over inner buttons — exclude inputs so
+      // focusContent never auto-focuses a text field (which would trigger the keyboard bridge).
       const candidates = document.querySelectorAll<HTMLElement>(
-        '[data-tv-content] main [tabindex="0"], [data-tv-content] main button:not([disabled])'
+        '[data-tv-content] main [tabindex="0"]:not(input):not(textarea), [data-tv-content] main button:not([disabled])'
       );
       const el = Array.from(candidates).find(el => el.offsetParent !== null);
       if (el) { el.focus(); return; }
@@ -54,7 +55,6 @@ function HomeContent() {
   }, [isTV]);
 
   const [railFocused, setRailFocused] = useState(false);
-  const lastContentFocusRef = useRef<HTMLElement | null>(null);
   const activeRailItemRef = useRef<HTMLButtonElement | null>(null);
 
   const navItems = [
@@ -67,7 +67,7 @@ function HomeContent() {
 
   const focusContent = (attempts = 0) => {
     const candidates = document.querySelectorAll<HTMLElement>(
-      '[data-tv-content] main [tabindex="0"], [data-tv-content] main button:not([disabled])'
+      '[data-tv-content] main [tabindex="0"]:not(input):not(textarea), [data-tv-content] main button:not([disabled])'
     );
     const target = Array.from(candidates).find(el => el.offsetParent !== null);
     if (target) {
@@ -85,19 +85,6 @@ function HomeContent() {
     }
   };
 
-  const handleContentKeyDown = (e: React.KeyboardEvent) => {
-    if (!isTV) return;
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      e.nativeEvent.stopImmediatePropagation();
-      activeRailItemRef.current?.focus();
-    }
-  };
-
-  const handleContentFocus = (e: React.FocusEvent) => {
-    if (!isTV) return;
-    lastContentFocusRef.current = e.target as HTMLElement;
-  };
 
   if (loading) {
     return (
@@ -200,8 +187,6 @@ function HomeContent() {
       <div
         className={isTV ? 'tv-content' : ''}
         {...(isTV ? { 'data-tv-content': '' } : {})}
-        onKeyDown={isTV ? handleContentKeyDown : undefined}
-        onFocus={isTV ? handleContentFocus : undefined}
       >
         {/* Header — hidden on TV via CSS */}
         <header className="sticky top-0 z-10 bg-card/80 backdrop-blur-sm border-b border-border">
