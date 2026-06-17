@@ -181,7 +181,7 @@ function HomeContent() {
   );
 
   return (
-    <div className={isTV ? 'tv-shell' : 'min-h-screen pb-20'}>
+    <div className={isTV ? 'tv-shell' : 'min-h-screen pb-[calc(5rem_+_env(safe-area-inset-bottom))]'}>
       {isTV && railNav}
 
       <div
@@ -189,7 +189,7 @@ function HomeContent() {
         {...(isTV ? { 'data-tv-content': '' } : {})}
       >
         {/* Header — hidden on TV via CSS */}
-        <header className="sticky top-0 z-10 bg-card/80 backdrop-blur-sm border-b border-border">
+        <header className="sticky top-0 z-10 bg-card/80 backdrop-blur-sm border-b border-border pt-[env(safe-area-inset-top)]">
           <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 lg:px-6 py-3 flex items-center justify-between">
             <h1 className="font-display text-xl font-bold text-foreground">Watchlist</h1>
             <div className="flex items-center gap-2">
@@ -243,7 +243,7 @@ function HomeContent() {
         </main>
 
         {/* Bottom Navigation — hidden on TV via CSS */}
-        <nav className="bottom-nav fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-sm border-t border-border">
+        <nav className="bottom-nav fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-sm border-t border-border pb-[env(safe-area-inset-bottom)]">
           <div className="max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 lg:px-6">
             <div className="flex justify-around py-2">
               <NavButton

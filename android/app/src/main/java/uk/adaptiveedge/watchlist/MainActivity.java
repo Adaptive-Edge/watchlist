@@ -44,6 +44,9 @@ public class MainActivity extends BridgeActivity {
         boolean isTV = getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK);
 
         WebView webView = this.getBridge().getWebView();
+        // Dark background prevents a white flash in the status/nav bar areas on
+        // edge-to-edge (Android 15+/SDK 36) before the web content paints.
+        webView.setBackgroundColor(0xFF0A0A0F);
 
         if (isTV) {
             webView.addJavascriptInterface(new TVKeyboardBridge(), "TVKeyboard");
