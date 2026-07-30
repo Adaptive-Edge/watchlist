@@ -344,11 +344,26 @@ export async function scoreReleasesForUser(
   // Old titles drift into TMDB's feeds without being real re-releases — only
   // keep them when they're actually showing in cinemas.
   const minYear = new Date().getFullYear() - 2;
+  // Evidence gates: a candidate with no overview is unscoreable (the model
+  // just invents a reason), and an already-released title with a weak/absent
+  // TMDB rating and no decent Guardian review isn't worth recommending.
+  // Titles released in the last 14 days (or upcoming) are exempt from the
+  // rating bar since ratings lag release.
+  const ratingCutoffDate = new Date();
+  ratingCutoffDate.setDate(ratingCutoffDate.getDate() - 14);
+  const hasEvidence = (r: NewRelease): boolean => {
+    if (!(r.overview || "").trim()) return false;
+    const released = r.releaseDate && new Date(r.releaseDate) < ratingCutoffDate;
+    if (!released) return true;
+    const tmdb = parseFloat(r.tmdbRating || "0");
+    return tmdb >= 6.5 || (r.guardianRating != null && r.guardianRating >= 3);
+  };
   const candidates = releases.filter(
     (r) =>
       !excludeSet.has(normaliseTitle(r.title)) &&
       !watchedSet.has(normaliseTitleExact(r.title)) &&
-      (r.year == null || r.year >= minYear || !!r.inCinemas)
+      (r.year == null || r.year >= minYear || !!r.inCinemas) &&
+      hasEvidence(r)
   );
 
   if (candidates.length === 0) return [];
@@ -386,6 +401,8 @@ Rules:
 - The "reason" must describe THIS candidate (the one identified by tmdbId/titleMatch). NEVER write "In '[Other Film]', ..." where [Other Film] is anything other than the candidate itself.
 - If comparing to one of the user's favourites, phrase it as "Like your favourite [X], this one ..." — never put the favourite in the subject position.
 - The "reason" should be personal — reference their specific tastes, not generic praise. If the candidate has a Guardian rating, mention it (e.g., "Guardian 5-star reviewed").
+- Only include a pick when the metadata gives concrete evidence of fit (plot, genre overlap, cast/director they like, strong ratings). If a candidate has a thin overview, no ratings, or nothing connecting it to their profile, SKIP it — returning 2-3 strong picks (or none) is far better than padding with weak ones.
+- Never write vague filler reasons like "might appeal to your adventurous side" — cite the specific plot element, person, or rating that makes it a match.
 - Be selective — a mediocre match at 65 is less useful than no match`,
       },
       {
