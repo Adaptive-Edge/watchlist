@@ -608,16 +608,19 @@ export function registerRoutes(app: Express) {
     try {
       const userId = req.params.userId;
       const pickId = req.params.pickId;
-      const { action, rating, reason } = req.body as {
+      const { action, rating, reason, item } = req.body as {
         action: "add_to_watchlist" | "watched" | "rejected";
         rating?: "loved" | "ok" | "disliked";
         reason?: string;
+        // Fallback identity sent by the client — used when pickId is stale
+        // (a re-score replaces "new" pick rows with fresh UUIDs)
+        item?: { title: string; mediaType: "film" | "tv"; year: number | null };
       };
 
-      // Try guardian-pick first, fall back to new-release-pick.
-      const gpicks = await storage.getUserGuardianPicks(userId);
-      const gpick = gpicks.find((p) => p.id === pickId);
-      if (gpick) {
+      // Direct id lookups (any status) — the picks feed only shows "new", but
+      // an action must never miss just because a row's status already moved.
+      const gpick = await storage.getUserGuardianPickById(pickId);
+      if (gpick && gpick.userId === userId) {
         const r = gpick.review;
         if (action === "add_to_watchlist") {
           await storage.addToWatchlist({
@@ -650,9 +653,8 @@ export function registerRoutes(app: Express) {
         return res.json({ success: true, source: "guardian_review" });
       }
 
-      const npicks = await storage.getUserPicks(userId);
-      const npick = npicks.find((p) => p.id === pickId);
-      if (npick) {
+      const npick = await storage.getUserPickById(pickId);
+      if (npick && npick.userId === userId) {
         const r = npick.release;
         if (action === "add_to_watchlist") {
           await storage.addToWatchlist({
@@ -683,6 +685,41 @@ export function registerRoutes(app: Express) {
           await storage.updateUserPickStatus(pickId, "rejected");
         }
         return res.json({ success: true, source: "new_release" });
+      }
+
+      // Stale pick id (rows were replaced by a re-score since the client
+      // loaded) — apply the action by title so it is never lost.
+      if (item?.title) {
+        if (action === "add_to_watchlist") {
+          await storage.addToWatchlist({
+            userId,
+            title: item.title,
+            mediaType: item.mediaType,
+            year: item.year,
+          });
+        } else if (action === "watched") {
+          await storage.addToWatchHistory({
+            userId,
+            title: item.title,
+            mediaType: item.mediaType,
+            year: item.year,
+            rating,
+          });
+        } else if (action === "rejected") {
+          await storage.addRejectedItem({
+            userId,
+            title: item.title,
+            mediaType: item.mediaType,
+            year: item.year,
+            reason: reason || "Not interested",
+          });
+        }
+        await storage.updatePickStatusByTitle(
+          userId,
+          item.title,
+          action === "add_to_watchlist" ? "added_to_watchlist" : action
+        );
+        return res.json({ success: true, source: "title_fallback" });
       }
 
       res.status(404).json({ error: "Pick not found" });

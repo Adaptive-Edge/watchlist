@@ -874,7 +874,15 @@ function UnifiedPickCard({ pick }: { pick: UnifiedPick }) {
       await apiRequest(
         "POST",
         `/api/users/${user.id}/picks/${pick.id}/action`,
-        { action, rating }
+        {
+          action,
+          rating,
+          item: {
+            title: pick.item.title,
+            mediaType: pick.item.mediaType,
+            year: pick.item.year,
+          },
+        }
       );
       setDone(kind);
       if (kind === "watched" && rating === "loved") {
@@ -974,7 +982,15 @@ function CarouselOverlay({
     try {
       const action =
         kind === "watchlist" ? "add_to_watchlist" : kind === "watched" ? "watched" : "rejected";
-      await apiRequest("POST", `/api/users/${user.id}/picks/${pick.id}/action`, { action, rating });
+      await apiRequest("POST", `/api/users/${user.id}/picks/${pick.id}/action`, {
+        action,
+        rating,
+        item: {
+          title: pick.item.title,
+          mediaType: pick.item.mediaType,
+          year: pick.item.year,
+        },
+      });
       setDone(kind);
       invalidate();
       setTimeout(() => {

@@ -30,6 +30,8 @@ interface RawTitle {
   overview: string;
   posterPath: string | null;
   tmdbRating: string;
+  voteCount: number | null;
+  originalLanguage: string | null;
   genreIds: number[];
   inCinemas: boolean;
 }
@@ -71,6 +73,8 @@ export async function fetchNewReleases(): Promise<RawTitle[]> {
           overview: item.overview || "",
           posterPath: item.poster_path || null,
           tmdbRating: (item.vote_average || 0).toFixed(1),
+          voteCount: item.vote_count ?? null,
+          originalLanguage: item.original_language || null,
           genreIds: item.genre_ids || [],
           inCinemas: cinemaTmdbIds.has(item.id),
         });

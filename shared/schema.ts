@@ -123,6 +123,8 @@ export const newReleases = mysqlTable("new_releases", {
   genres: json("genres"), // string[]
   posterPath: varchar("poster_path", { length: 500 }),
   tmdbRating: varchar("tmdb_rating", { length: 10 }),
+  voteCount: int("vote_count"), // TMDB vote count — low counts make ratings unreliable
+  originalLanguage: varchar("original_language", { length: 10 }),
   cast: json("cast"), // string[] (top 5)
   directors: json("directors"), // string[]
   streamingUk: json("streaming_uk"), // { provider: string, logoPath: string }[]

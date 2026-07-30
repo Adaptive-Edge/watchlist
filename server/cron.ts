@@ -77,6 +77,8 @@ export async function runDailyNewReleases(): Promise<{
       genres: title.genres,
       posterPath: title.posterPath,
       tmdbRating: title.tmdbRating,
+      voteCount: title.voteCount,
+      originalLanguage: title.originalLanguage,
       cast: title.cast,
       directors: title.directors,
       streamingUk: title.streamingUk,

@@ -392,8 +392,12 @@ export async function scoreReleasesForUser(
     if (!(r.overview || "").trim()) return false;
     if (r.guardianRating != null && r.guardianRating >= 3) return true;
     const tmdb = parseFloat(r.tmdbRating || "0");
-    // A rated title must clear the bar no matter how new it is.
-    if (tmdb > 0) return tmdb >= 6.5;
+    // A rating from a handful of votes is noise, not evidence — treat
+    // low-vote titles as unrated (fan-brigaded foreign releases often carry
+    // inflated averages on tiny vote counts).
+    const reliablyRated = tmdb > 0 && (r.voteCount == null || r.voteCount >= 30);
+    if (reliablyRated) return tmdb >= 6.5;
+    if (tmdb > 0 && r.voteCount != null && r.voteCount < 30) return false;
     // Unrated is only excusable while ratings lag a fresh release.
     return !r.releaseDate || new Date(r.releaseDate) >= ratingCutoffDate;
   };
@@ -413,7 +417,9 @@ export async function scoreReleasesForUser(
       const cast = Array.isArray(r.cast) ? (r.cast as string[]).join(", ") : "";
       const directors = Array.isArray(r.directors) ? (r.directors as string[]).join(", ") : "";
       const guardian = r.guardianRating ? `Guardian: ${r.guardianRating}/5` : "";
-      return `${i + 1}. [TMDB:${r.tmdbId}] "${r.title}" (${r.year || "?"}, ${r.mediaType}) — Genres: ${genres} | Cast: ${cast} | Directors: ${directors} | TMDB: ${r.tmdbRating}/10 ${guardian}\n   ${(r.overview || "").substring(0, 150)}`;
+      const votes = r.voteCount != null ? ` (${r.voteCount} votes)` : "";
+      const lang = r.originalLanguage && r.originalLanguage !== "en" ? ` | Language: ${r.originalLanguage}` : "";
+      return `${i + 1}. [TMDB:${r.tmdbId}] "${r.title}" (${r.year || "?"}, ${r.mediaType}) — Genres: ${genres} | Cast: ${cast} | Directors: ${directors} | TMDB: ${r.tmdbRating}/10${votes} ${guardian}${lang}\n   ${(r.overview || "").substring(0, 150)}`;
     })
     .join("\n");
 
@@ -441,6 +447,7 @@ Rules:
 - If comparing to one of the user's favourites, phrase it as "Like your favourite [X], this one ..." — never put the favourite in the subject position.
 - The "reason" should be personal — reference their specific tastes, not generic praise. If the candidate has a Guardian rating, mention it (e.g., "Guardian 5-star reviewed").
 - Only include a pick when the metadata gives concrete evidence of fit (plot, genre overlap, cast/director they like, strong ratings). If a candidate has a thin overview, no ratings, or nothing connecting it to their profile, SKIP it — returning 2-3 strong picks (or none) is far better than padding with weak ones.
+- Be skeptical of high TMDB ratings on low vote counts (under ~200 votes) — these are often fan-inflated, especially for non-English releases. A non-English title needs genuine evidence of fit with THIS user's taste profile (which skews British/American/Scandinavian drama), not just a high average.
 - Never write vague filler reasons like "might appeal to your adventurous side" — cite the specific plot element, person, or rating that makes it a match.
 - Be selective — a mediocre match at 65 is less useful than no match`,
       },

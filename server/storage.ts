@@ -452,6 +452,39 @@ export const storage = {
     await db.update(userPicks).set({ status }).where(eq(userPicks.id, id));
   },
 
+  async getUserPickById(id: string): Promise<(UserPick & { release: NewRelease }) | undefined> {
+    const [pick] = await db.select().from(userPicks).where(eq(userPicks.id, id));
+    if (!pick) return undefined;
+    const release = await this.getNewReleaseById(pick.releaseId);
+    if (!release) return undefined;
+    return { ...pick, release };
+  },
+
+  // Mark every pick (either pipeline, any status) matching a title as actioned
+  // — used when the client's pick id is stale after a re-score replaced rows.
+  async updatePickStatusByTitle(
+    userId: string,
+    title: string,
+    status: "added_to_watchlist" | "watched" | "rejected"
+  ): Promise<void> {
+    const [releases, reviews] = await Promise.all([
+      db.select().from(newReleases).where(eq(newReleases.title, title)),
+      db.select().from(guardianReviews).where(eq(guardianReviews.title, title)),
+    ]);
+    for (const r of releases) {
+      await db
+        .update(userPicks)
+        .set({ status })
+        .where(and(eq(userPicks.userId, userId), eq(userPicks.releaseId, r.id)));
+    }
+    for (const r of reviews) {
+      await db
+        .update(userGuardianPicks)
+        .set({ status })
+        .where(and(eq(userGuardianPicks.userId, userId), eq(userGuardianPicks.reviewId, r.id)));
+    }
+  },
+
   async deleteStaleUserPicks(userId: string): Promise<void> {
     await db
       .delete(userPicks)
@@ -635,5 +668,15 @@ export const storage = {
     status: "new" | "added_to_watchlist" | "watched" | "rejected"
   ): Promise<void> {
     await db.update(userGuardianPicks).set({ status }).where(eq(userGuardianPicks.id, id));
+  },
+
+  async getUserGuardianPickById(
+    id: string
+  ): Promise<(UserGuardianPick & { review: GuardianReview }) | undefined> {
+    const [pick] = await db.select().from(userGuardianPicks).where(eq(userGuardianPicks.id, id));
+    if (!pick) return undefined;
+    const review = await this.getGuardianReviewById(pick.reviewId);
+    if (!review) return undefined;
+    return { ...pick, review };
   },
 };
