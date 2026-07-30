@@ -353,10 +353,12 @@ export async function scoreReleasesForUser(
   ratingCutoffDate.setDate(ratingCutoffDate.getDate() - 14);
   const hasEvidence = (r: NewRelease): boolean => {
     if (!(r.overview || "").trim()) return false;
-    const released = r.releaseDate && new Date(r.releaseDate) < ratingCutoffDate;
-    if (!released) return true;
+    if (r.guardianRating != null && r.guardianRating >= 3) return true;
     const tmdb = parseFloat(r.tmdbRating || "0");
-    return tmdb >= 6.5 || (r.guardianRating != null && r.guardianRating >= 3);
+    // A rated title must clear the bar no matter how new it is.
+    if (tmdb > 0) return tmdb >= 6.5;
+    // Unrated is only excusable while ratings lag a fresh release.
+    return !r.releaseDate || new Date(r.releaseDate) >= ratingCutoffDate;
   };
   const candidates = releases.filter(
     (r) =>
@@ -379,7 +381,7 @@ export async function scoreReleasesForUser(
     .join("\n");
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4o",
     messages: [
       {
         role: "system",
@@ -505,7 +507,7 @@ export async function scoreGuardianArchiveForUser(
     .join("\n");
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4o",
     messages: [
       {
         role: "system",
