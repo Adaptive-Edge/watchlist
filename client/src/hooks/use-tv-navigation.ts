@@ -81,7 +81,42 @@ export function useTVNavigation() {
         return;
       }
 
-      const target = nearest(active, all, dir);
+      // Zone containment: the rail is a vertical list, the content pane keeps
+      // up/down/right to itself — crossing between them only happens on
+      // left/right. Without this, up/down from a content card can
+      // geometrically "win" a rail item and yank focus into the menu.
+      const railEl = document.querySelector<HTMLElement>(".tv-rail");
+      const contentEl = document.querySelector<HTMLElement>("[data-tv-content]");
+      const inRail = !!railEl && railEl.contains(active);
+      const inContent = !!contentEl && contentEl.contains(active);
+
+      let candidates = all;
+      if (inRail) {
+        if (dir === "left") return; // nothing left of the rail
+        candidates =
+          dir === "right"
+            ? all.filter((el) => contentEl?.contains(el))
+            : all.filter((el) => railEl!.contains(el));
+      } else if (inContent) {
+        if (dir === "left") {
+          // Move left within the pane if possible; falling off the left edge
+          // lands on the rail's active item.
+          const inPane = nearest(active, all.filter((el) => contentEl!.contains(el)), "left");
+          if (inPane) {
+            inPane.focus();
+            return;
+          }
+          const railTarget =
+            railEl?.querySelector<HTMLElement>(".rail-item-active") ||
+            railEl?.querySelector<HTMLElement>("button");
+          railTarget?.focus();
+          return;
+        }
+        candidates = all.filter((el) => contentEl!.contains(el));
+      }
+      // Overlays (dialogs, carousels) are in neither zone — unrestricted.
+
+      const target = nearest(active, candidates, dir);
       if (target) target.focus();
     }
 

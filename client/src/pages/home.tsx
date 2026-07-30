@@ -38,17 +38,15 @@ function HomeContent() {
     return () => observer.disconnect();
   }, [isTV]);
 
-  // When TV mode activates, focus first visible content element (with retry for async content)
+  // When TV mode activates, start focus on the rail's active item — users
+  // expect to land on the left menu, not partway into the content pane.
   useEffect(() => {
     if (!isTV) return;
     const attempt = (n = 0) => {
-      // Prefer card containers (tabindex="0" divs) over inner buttons — exclude inputs so
-      // focusContent never auto-focuses a text field (which would trigger the keyboard bridge).
-      const candidates = document.querySelectorAll<HTMLElement>(
-        '[data-tv-content] main [tabindex="0"]:not(input):not(textarea), [data-tv-content] main button:not([disabled])'
-      );
-      const el = Array.from(candidates).find(el => el.offsetParent !== null);
-      if (el) { el.focus(); return; }
+      const el =
+        activeRailItemRef.current ||
+        document.querySelector<HTMLElement>(".tv-rail button");
+      if (el && el.offsetParent !== null) { el.focus(); return; }
       if (n < 15) setTimeout(() => attempt(n + 1), 100);
     };
     setTimeout(() => attempt(), 50);
@@ -168,7 +166,6 @@ function HomeContent() {
             className={`tv-rail-item${isActive ? ' rail-item-active' : ''}`}
             onClick={() => {
               setActiveTab(item.id);
-              lastContentFocusRef.current = null;
               setTimeout(() => focusContent(), 50);
             }}
           >
