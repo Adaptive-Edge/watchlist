@@ -474,16 +474,27 @@ export const storage = {
   },
 
   async getRecommendationStats(userId: string) {
-    const log = await db
-      .select()
-      .from(recommendationLog)
-      .where(eq(recommendationLog.userId, userId));
+    // Count every recommendation surfaced to the user: daily picks from both
+    // pipelines plus the Discover tab's logged suggestions. Outcomes come
+    // from pick statuses — the log's outcome column is never updated by the
+    // picks flow, which is why stats used to read all zeroes.
+    const [log, picks, gpicks] = await Promise.all([
+      db.select().from(recommendationLog).where(eq(recommendationLog.userId, userId)),
+      db.select().from(userPicks).where(eq(userPicks.userId, userId)),
+      db.select().from(userGuardianPicks).where(eq(userGuardianPicks.userId, userId)),
+    ]);
 
-    const total = log.length;
-    const addedToWatchlist = log.filter((r) => r.outcome === "added_to_watchlist").length;
-    const watched = log.filter((r) => r.outcome === "watched").length;
-    const rejected = log.filter((r) => r.outcome === "rejected").length;
-    const noAction = log.filter((r) => r.outcome === "no_action" || !r.outcome).length;
+    const all = [
+      ...log.map((r) => r.outcome || "no_action"),
+      ...picks.map((p) => (p.status === "new" ? "no_action" : p.status || "no_action")),
+      ...gpicks.map((p) => (p.status === "new" ? "no_action" : p.status || "no_action")),
+    ];
+
+    const total = all.length;
+    const addedToWatchlist = all.filter((o) => o === "added_to_watchlist").length;
+    const watched = all.filter((o) => o === "watched").length;
+    const rejected = all.filter((o) => o === "rejected").length;
+    const noAction = all.filter((o) => o === "no_action").length;
 
     return {
       total,
