@@ -7,6 +7,22 @@ import { scoreReleasesForUser, scoreGuardianArchiveForUser } from "./ai";
 
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
+// Users who never onboarded (no prefs, no favourites, no history) are dead
+// anonymous sessions — scoring them daily just burns OpenAI tokens.
+function hasEmptyProfile(profile: {
+  genres: unknown[];
+  favourites: unknown[];
+  history: unknown[];
+  rejected: unknown[];
+}): boolean {
+  return (
+    profile.genres.length === 0 &&
+    profile.favourites.length === 0 &&
+    profile.history.length === 0 &&
+    profile.rejected.length === 0
+  );
+}
+
 export function initCronJobs() {
   // Run daily at 06:00 UTC
   cron.schedule("0 6 * * *", () => {
@@ -172,12 +188,16 @@ export async function scoreGuardianPicksForUser(
 
   const profile = await storage.getUserProfile(userId);
   if (!profile.user) return;
+  if (hasEmptyProfile(profile)) {
+    console.log(`[cron] Skipping guardian scoring for user ${userId} — empty profile`);
+    return;
+  }
 
   const excludeTitles = [
-    ...profile.history.map((h) => h.title),
     ...profile.rejected.map((r) => r.title),
     ...(await storage.getWatchlist(userId)).map((w) => w.title),
   ];
+  const watchedTitles = profile.history.map((h) => h.title);
 
   const scored = await scoreGuardianArchiveForUser(
     {
@@ -191,7 +211,8 @@ export async function scoreGuardianPicksForUser(
     },
     reviews,
     excludeTitles,
-    guidance
+    guidance,
+    watchedTitles
   );
 
   await storage.deleteStaleUserGuardianPicks(userId);
@@ -222,13 +243,18 @@ export async function scoreNewReleasesForUser(
 
   const profile = await storage.getUserProfile(userId);
   if (!profile.user) return;
+  if (hasEmptyProfile(profile)) {
+    console.log(`[cron] Skipping release scoring for user ${userId} — empty profile`);
+    return;
+  }
 
-  // Build exclude list from watchlist, history, and rejected
+  // Build exclude lists: rejected/watchlisted block all seasons; watched
+  // blocks only the exact title so new seasons still surface
   const excludeTitles = [
-    ...profile.history.map((h) => h.title),
     ...profile.rejected.map((r) => r.title),
     ...(await storage.getWatchlist(userId)).map((w) => w.title),
   ];
+  const watchedTitles = profile.history.map((h) => h.title);
 
   const scored = await scoreReleasesForUser(
     {
@@ -242,7 +268,8 @@ export async function scoreNewReleasesForUser(
     },
     recentReleases,
     excludeTitles,
-    guidance
+    guidance,
+    watchedTitles
   );
 
   // Replace stale picks

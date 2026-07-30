@@ -323,6 +323,25 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/watchlist/:id", async (req, res) => {
     try {
+      // Removing from the watchlist must not silently re-expose the title to
+      // the recommenders. Unless the user has watched it (history excludes
+      // it already), record it as rejected so scoring keeps excluding it.
+      const item = await storage.getWatchlistItemById(req.params.id);
+      if (item) {
+        const history = await storage.getWatchHistory(item.userId);
+        const watched = history.some(
+          (h) => h.title.toLowerCase() === item.title.toLowerCase()
+        );
+        if (!watched) {
+          await storage.addRejectedItem({
+            userId: item.userId,
+            title: item.title,
+            mediaType: item.mediaType,
+            year: item.year,
+            reason: "Removed from watchlist",
+          });
+        }
+      }
       await storage.removeFromWatchlist(req.params.id);
       res.json({ success: true });
     } catch (error) {

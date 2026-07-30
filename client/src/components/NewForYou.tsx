@@ -13,6 +13,7 @@ import {
 import { TrailerPlayer } from "@/components/TrailerPlayer";
 import { useUser } from "@/hooks/use-user";
 import { apiRequest } from "@/lib/queryClient";
+import { normaliseTitle, normaliseTitleExact } from "@/lib/utils";
 import {
   Film,
   Tv,
@@ -180,14 +181,18 @@ export function NewForYou() {
     enabled: !!user,
   });
 
+  // Rejected/watchlisted hide every season of a title; watched hides only the
+  // exact title so next-season picks still show.
   const excludeKeys = new Set<string>([
-    ...history.map((h) => `${h.title.toLowerCase()}|${h.year ?? ""}`),
-    ...rejected.map((r) => `${r.title.toLowerCase()}|${r.year ?? ""}`),
-    ...watchlistItems.map((w) => `${w.title.toLowerCase()}|${w.year ?? ""}`),
+    ...rejected.map((r) => normaliseTitle(r.title)),
+    ...watchlistItems.map((w) => normaliseTitle(w.title)),
   ]);
+  const watchedKeys = new Set<string>(history.map((h) => normaliseTitleExact(h.title)));
 
   const visibleUnifiedPicks = unifiedPicks.filter(
-    (p) => !excludeKeys.has(`${p.item.title.toLowerCase()}|${p.item.year ?? ""}`)
+    (p) =>
+      !excludeKeys.has(normaliseTitle(p.item.title)) &&
+      !watchedKeys.has(normaliseTitleExact(p.item.title))
   );
 
   const invalidatePicks = () => {

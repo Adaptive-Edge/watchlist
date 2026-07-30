@@ -211,6 +211,29 @@ export const storage = {
     const id = randomUUID();
     await db.insert(watchHistory).values({ ...data, id });
     const [created] = await db.select().from(watchHistory).where(eq(watchHistory.id, id));
+
+    // A "loved" watch is the strongest taste signal we get — promote it to
+    // favourites so the Favourites tab and the taste profile keep learning.
+    if (data.rating === "loved" && data.userId && data.title) {
+      try {
+        const existing = await this.getFavouriteTitles(data.userId);
+        const already = existing.some(
+          (f) => f.title.toLowerCase() === data.title!.toLowerCase()
+        );
+        if (!already) {
+          await this.addFavouriteTitle({
+            userId: data.userId,
+            title: data.title,
+            mediaType: data.mediaType || "film",
+            year: data.year ?? null,
+            reason: "Loved it when watched",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to promote loved watch to favourites:", err);
+      }
+    }
+
     return created;
   },
 
@@ -300,6 +323,11 @@ export const storage = {
     await db.insert(watchlist).values({ ...data, id });
     const [created] = await db.select().from(watchlist).where(eq(watchlist.id, id));
     return created;
+  },
+
+  async getWatchlistItemById(id: string): Promise<WatchlistItem | undefined> {
+    const [item] = await db.select().from(watchlist).where(eq(watchlist.id, id));
+    return item;
   },
 
   async removeFromWatchlist(id: string): Promise<void> {
@@ -547,6 +575,19 @@ export const storage = {
   // --- User Guardian picks ---
 
   async insertUserGuardianPick(data: Omit<InsertUserGuardianPick, "id">): Promise<void> {
+    // Never create a second pick for a review the user already has (any
+    // status) — an actioned pick must not resurface as "new".
+    const [existing] = await db
+      .select()
+      .from(userGuardianPicks)
+      .where(
+        and(
+          eq(userGuardianPicks.userId, data.userId!),
+          eq(userGuardianPicks.reviewId, data.reviewId!)
+        )
+      );
+    if (existing) return;
+
     const id = randomUUID();
     await db.insert(userGuardianPicks).values({ ...data, id });
   },

@@ -5,6 +5,29 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Normalise a title for exclusion matching so "Industry season four",
+// "Industry: Season 4" and "Industry" all collide. Strips punctuation,
+// leading articles, and trailing season/series/part qualifiers.
+// Use for rejected/watchlisted titles: dismissing a show means any season.
+export function normaliseTitle(raw: string): string {
+  return normaliseTitleExact(raw).replace(
+    /\s+(season|series|part|volume|vol)\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b.*$/,
+    ""
+  );
+}
+
+// Same normalisation but season/series qualifiers kept, so watching one
+// season does not suppress recommendations for the next.
+export function normaliseTitleExact(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/['"‘’“”]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/^the\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 interface UserProfile {
   genres: Array<{ genre: string; rating: number }>;
   actors: Array<{ actorName: string; rating: number }>;
@@ -12,7 +35,7 @@ interface UserProfile {
   moods: Array<{ mood: string; rating: number }>;
   favourites: Array<{ title: string; mediaType: string; reason?: string | null }>;
   history: Array<{ title: string; mediaType: string; rating?: string | null }>;
-  rejected: Array<{ title: string; reason?: string | null }>;
+  rejected: Array<{ title: string; reason?: string | null; createdAt?: Date | string | null }>;
 }
 
 export interface Recommendation {
@@ -146,10 +169,14 @@ function buildPrompt(profile: UserProfile, userRequest?: string): string {
     sections.push(`RECENTLY DISLIKED: ${dislikedHistory.map((h) => h.title).join(", ")}`);
   }
 
-  // Rejected titles with reasons
+  // Rejected titles with reasons — most recent first so the freshest signals
+  // survive the cap
   if (profile.rejected.length > 0) {
-    const withReasons = profile.rejected
-      .slice(0, 15)
+    const withReasons = [...profile.rejected]
+      .sort((a, b) =>
+        String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
+      )
+      .slice(0, 30)
       .map((r) => r.reason && r.reason !== "Not interested"
         ? `${r.title} (reason: ${r.reason})`
         : r.title)
@@ -305,13 +332,19 @@ export async function scoreReleasesForUser(
   profile: UserProfile,
   releases: NewRelease[],
   excludeTitles: string[],
-  guidance?: string
+  guidance?: string,
+  watchedTitles: string[] = []
 ): Promise<ScoredPick[]> {
   const tasteProfile = buildPrompt(profile);
-  const excludeSet = new Set(excludeTitles.map((t) => t.toLowerCase()));
+  // Rejected/watchlisted: any season of the title is out. Watched: only the
+  // exact (season-qualified) title is out, so new seasons still surface.
+  const excludeSet = new Set(excludeTitles.map(normaliseTitle));
+  const watchedSet = new Set(watchedTitles.map(normaliseTitleExact));
 
   const candidates = releases.filter(
-    (r) => !excludeSet.has(r.title.toLowerCase())
+    (r) =>
+      !excludeSet.has(normaliseTitle(r.title)) &&
+      !watchedSet.has(normaliseTitleExact(r.title))
   );
 
   if (candidates.length === 0) return [];
@@ -408,20 +441,34 @@ export async function scoreGuardianArchiveForUser(
   profile: UserProfile,
   reviews: GuardianReview[],
   excludeTitles: string[],
-  guidance?: string
+  guidance?: string,
+  watchedTitles: string[] = []
 ): Promise<GuardianScoredPick[]> {
   const tasteProfile = buildPrompt(profile);
-  const excludeSet = new Set(excludeTitles.map((t) => t.toLowerCase()));
+  // Rejected/watchlisted: any season of the title is out. Watched: only the
+  // exact (season-qualified) title is out, so new seasons still surface.
+  const excludeSet = new Set(excludeTitles.map(normaliseTitle));
+  const watchedSet = new Set(watchedTitles.map(normaliseTitleExact));
 
-  const candidates = reviews.filter((r) => !excludeSet.has(r.title.toLowerCase()));
+  // Candidate hygiene: drop reviews with no TMDB match (headline fragments,
+  // radio shows, one-off articles — the junk that was polluting picks), and
+  // drop old back-catalogue re-release reviews from a "new for you" feed.
+  const minYear = new Date().getFullYear() - 2;
+  const candidates = reviews.filter(
+    (r) =>
+      !excludeSet.has(normaliseTitle(r.title)) &&
+      !watchedSet.has(normaliseTitleExact(r.title)) &&
+      r.tmdbId != null &&
+      (r.year == null || r.year >= minYear)
+  );
   if (candidates.length === 0) return [];
 
   // Keep the candidate list bounded so the context stays reasonable. Prefer
-  // recent + higher-rated reviews when trimming.
+  // higher-rated, then more recent reviews when trimming.
   const ranked = [...candidates].sort((a, b) => {
-    const ar = (a.starRating || 0) * 10 + (a.publishedDate || "").localeCompare(b.publishedDate || "");
-    const br = (b.starRating || 0) * 10;
-    return br - ar;
+    const stars = (b.starRating || 0) - (a.starRating || 0);
+    if (stars !== 0) return stars;
+    return (b.publishedDate || "").localeCompare(a.publishedDate || "");
   });
   const trimmed = ranked.slice(0, 80);
 
