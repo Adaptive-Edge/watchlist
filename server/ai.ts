@@ -341,10 +341,14 @@ export async function scoreReleasesForUser(
   const excludeSet = new Set(excludeTitles.map(normaliseTitle));
   const watchedSet = new Set(watchedTitles.map(normaliseTitleExact));
 
+  // Old titles drift into TMDB's feeds without being real re-releases — only
+  // keep them when they're actually showing in cinemas.
+  const minYear = new Date().getFullYear() - 2;
   const candidates = releases.filter(
     (r) =>
       !excludeSet.has(normaliseTitle(r.title)) &&
-      !watchedSet.has(normaliseTitleExact(r.title))
+      !watchedSet.has(normaliseTitleExact(r.title)) &&
+      (r.year == null || r.year >= minYear || !!r.inCinemas)
   );
 
   if (candidates.length === 0) return [];
