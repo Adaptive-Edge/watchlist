@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { isTV } from "@/lib/tv";
+import { useBackClose } from "@/hooks/use-back-close";
 
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 
@@ -230,6 +231,7 @@ function WatchlistCarouselOverlay({
   initialIndex: number;
   onClose: () => void;
 }) {
+  useBackClose(true, onClose);
   const { user } = useUser();
   const queryClient = useQueryClient();
   const [index, setIndex] = useState(initialIndex);
@@ -514,6 +516,9 @@ function WatchlistItemCard({ item, onRemove, removing }: WatchlistItemCardProps)
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const reviewOpenedAt = useRef(0);
+
+  // TV remote / Android back closes the dialog instead of trapping the user
+  useBackClose(reviewOpen, () => setReviewOpen(false));
 
   const openReview = () => {
     reviewOpenedAt.current = Date.now();

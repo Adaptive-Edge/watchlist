@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { TrailerPlayer } from "@/components/TrailerPlayer";
 import { useUser } from "@/hooks/use-user";
+import { useBackClose } from "@/hooks/use-back-close";
 import { apiRequest } from "@/lib/queryClient";
 import { normaliseTitle, normaliseTitleExact } from "@/lib/utils";
 import {
@@ -483,6 +484,10 @@ function GuardianCardShell({
   const [showWatchedOptions, setShowWatchedOptions] = useState(false);
   const reviewOpenedAt = useRef(0);
 
+  // TV remote / Android back button closes the review dialog — without this
+  // there is no way out of the dialog on TV
+  useBackClose(reviewOpen, () => setReviewOpen(false));
+
   const openReview = () => {
     reviewOpenedAt.current = Date.now();
     setReviewOpen(true);
@@ -724,7 +729,6 @@ function GuardianCardShell({
         <DialogContent
         className="sm:max-w-xl max-h-[80vh] overflow-hidden flex flex-col"
         aria-describedby={undefined}
-        onOpenAutoFocus={(e) => { if (isTV()) e.preventDefault(); }}
       >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
