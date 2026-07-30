@@ -214,6 +214,13 @@ interface WatchlistItemCardProps {
   removing: boolean;
 }
 
+// Every watchlist item gets a trailer affordance — if TMDB gave us no trailer
+// key, fall back to a YouTube search so the button is never missing.
+function openYouTubeTrailerSearch(title: string, year: number | null) {
+  const q = encodeURIComponent(`${title}${year ? ` ${year}` : ""} trailer`);
+  window.open(`https://www.youtube.com/results?search_query=${q}`, "_blank", "noopener");
+}
+
 function WatchlistCarouselOverlay({
   items,
   initialIndex,
@@ -432,15 +439,19 @@ function WatchlistCarouselOverlay({
           )}
 
           {/* Links */}
-          {(release?.trailerKey || release?.guardianUrl) && (
+          {(
             <div className="flex items-center justify-center md:justify-start gap-4 mb-6">
-              {release.trailerKey && (
+              {release?.trailerKey ? (
                 <button onClick={() => setTrailerOpen((v) => !v)} className="inline-flex items-center gap-1.5 text-sm text-[#93b6ee] hover:underline">
                   <Play className="w-3.5 h-3.5" />
                   {trailerOpen ? "Hide trailer" : "Play trailer"}
                 </button>
+              ) : (
+                <button onClick={() => openYouTubeTrailerSearch(item.title, item.year)} className="inline-flex items-center gap-1.5 text-sm text-[#93b6ee] hover:underline">
+                  <Play className="w-3.5 h-3.5" /> Trailer (YouTube)
+                </button>
               )}
-              {release.guardianUrl && (
+              {release?.guardianUrl && (
                 <a href={release.guardianUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-[#93b6ee] hover:underline">
                   <ExternalLink className="w-3.5 h-3.5" /> Read review
                 </a>
@@ -611,6 +622,20 @@ function WatchlistItemCard({ item, onRemove, removing }: WatchlistItemCardProps)
                 </div>
               )}
 
+              {/* Trailer — always available so you can re-check why you saved it */}
+              <button
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isTV()) return;
+                  if (release?.trailerKey) setTrailerOpen(true);
+                  else openYouTubeTrailerSearch(item.title, item.year);
+                }}
+                className="inline-flex items-center gap-1 text-xs text-accent hover:underline mb-2"
+              >
+                <Play className="w-2.5 h-2.5" /> Trailer
+              </button>
+
               {/* Availability */}
               {(!!release?.inCinemas || streaming.length > 0) && (
                 <div className="flex items-center gap-1.5">
@@ -705,9 +730,13 @@ function WatchlistItemCard({ item, onRemove, removing }: WatchlistItemCardProps)
               </>
             ) : (
               <>
-                {release?.trailerKey && (
+                {release?.trailerKey ? (
                   <Button size="sm" variant="outline" onClick={() => { if (dialogGuard()) return; setReviewOpen(false); setTrailerOpen(true); }} className="gap-1 justify-start">
                     <Play className="w-3.5 h-3.5" /> Trailer
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => { if (dialogGuard()) return; openYouTubeTrailerSearch(item.title, item.year); }} className="gap-1 justify-start">
+                    <Play className="w-3.5 h-3.5" /> Trailer (YouTube)
                   </Button>
                 )}
                 {release?.imdbId && (
