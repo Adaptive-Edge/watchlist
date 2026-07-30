@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { storage } from "./storage";
-import { generateRecommendations, parseNaturalLanguageRequest, generateTasteInsights } from "./ai";
+import { generateRecommendations, parseNaturalLanguageRequest, generateTasteInsights, normaliseTitle } from "./ai";
 import {
   runDailyNewReleases,
   scoreNewReleasesForUser,
@@ -440,18 +440,35 @@ export function registerRoutes(app: Express) {
         (w) => w.title
       );
 
-      const insights = await generateTasteInsights(
-        {
-          genres: profile.genres,
-          actors: profile.actors,
-          directors: profile.directors,
-          moods: profile.moods,
-          favourites: profile.favourites,
-          history: profile.history,
-          rejected: profile.rejected,
-        },
-        watchlistTitles
+      const profileArg = {
+        genres: profile.genres,
+        actors: profile.actors,
+        directors: profile.directors,
+        moods: profile.moods,
+        favourites: profile.favourites,
+        history: profile.history,
+        rejected: profile.rejected,
+      };
+
+      // The model sometimes suggests a gem the user has already seen despite
+      // the DO NOT SUGGEST list — validate against the normalised exclusion
+      // set, retry once, then drop the gem rather than show a known title.
+      const excludedGems = new Set(
+        [
+          ...profile.favourites.map((f) => f.title),
+          ...profile.history.map((h) => h.title),
+          ...profile.rejected.map((r) => r.title),
+          ...watchlistTitles,
+        ].map(normaliseTitle)
       );
+      const gemIsKnown = (i: { hiddenGem: { title: string } | null }) =>
+        i.hiddenGem != null && excludedGems.has(normaliseTitle(i.hiddenGem.title));
+
+      let insights = await generateTasteInsights(profileArg, watchlistTitles);
+      if (gemIsKnown(insights)) {
+        const retry = await generateTasteInsights(profileArg, watchlistTitles);
+        insights = gemIsKnown(retry) ? { ...retry, hiddenGem: null } : retry;
+      }
 
       // Enrich the hidden gem with TMDB data so the client can render it as
       // an actionable card (poster, trailer, year, rating)
