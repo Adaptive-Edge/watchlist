@@ -196,6 +196,23 @@ export function buildPosterUrl(posterPath: string, size = "w300"): string {
   return `${TMDB_IMAGE_BASE}/${size}${posterPath}`;
 }
 
+export async function fetchBasicInfo(
+  tmdbId: number,
+  mediaType: "film" | "tv"
+): Promise<{ year: number | null; tmdbRating: string | null }> {
+  try {
+    const type = mediaType === "film" ? "movie" : "tv";
+    const data = await tmdbGet(`/${type}/${tmdbId}`);
+    const date = data.release_date || data.first_air_date;
+    return {
+      year: date ? parseInt(date.substring(0, 4)) : null,
+      tmdbRating: data.vote_average ? (data.vote_average as number).toFixed(1) : null,
+    };
+  } catch {
+    return { year: null, tmdbRating: null };
+  }
+}
+
 export async function enrichReleases(
   rawTitles: RawTitle[]
 ): Promise<Array<RawTitle & TitleDetails>> {

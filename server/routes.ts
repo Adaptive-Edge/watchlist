@@ -8,7 +8,7 @@ import {
   scoreGuardianPicksForUser,
 } from "./cron";
 import { fetchAndStoreGuardianArchive } from "./guardianArchive";
-import { searchTitle } from "./tmdb";
+import { searchTitle, fetchBasicInfo } from "./tmdb";
 
 export function registerRoutes(app: Express) {
   // === User Management ===
@@ -436,15 +436,38 @@ export function registerRoutes(app: Express) {
         return res.status(404).json({ error: "User not found" });
       }
 
-      const insights = await generateTasteInsights({
-        genres: profile.genres,
-        actors: profile.actors,
-        directors: profile.directors,
-        moods: profile.moods,
-        favourites: profile.favourites,
-        history: profile.history,
-        rejected: profile.rejected,
-      });
+      const watchlistTitles = (await storage.getWatchlist(req.params.userId)).map(
+        (w) => w.title
+      );
+
+      const insights = await generateTasteInsights(
+        {
+          genres: profile.genres,
+          actors: profile.actors,
+          directors: profile.directors,
+          moods: profile.moods,
+          favourites: profile.favourites,
+          history: profile.history,
+          rejected: profile.rejected,
+        },
+        watchlistTitles
+      );
+
+      // Enrich the hidden gem with TMDB data so the client can render it as
+      // an actionable card (poster, trailer, year, rating)
+      if (insights.hiddenGem) {
+        try {
+          const gem = insights.hiddenGem;
+          const tmdb = await searchTitle(gem.title, null, gem.mediaType);
+          if (tmdb) {
+            gem.posterPath = tmdb.posterPath;
+            gem.trailerKey = tmdb.trailerKey;
+            const basic = await fetchBasicInfo(tmdb.tmdbId, gem.mediaType);
+            gem.year = basic.year;
+            gem.tmdbRating = basic.tmdbRating;
+          }
+        } catch {}
+      }
 
       res.json(insights);
     } catch (error) {

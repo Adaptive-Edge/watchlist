@@ -1,8 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/hooks/use-user";
-import { Film, Tv, Heart, Loader2, Star, Smile, User, Video, Brain, Sparkles, RefreshCw, Lightbulb, BarChart3 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { TrailerPlayer } from "@/components/TrailerPlayer";
+import { Film, Tv, Heart, Loader2, Star, Smile, User, Video, Brain, Sparkles, RefreshCw, Lightbulb, BarChart3, Plus, Eye, X, Play } from "lucide-react";
 
 interface FavouriteTitle {
   id: string;
@@ -45,12 +48,23 @@ interface RecommendationStats {
   rejectedRate: number;
 }
 
+interface HiddenGem {
+  title: string;
+  mediaType: "film" | "tv";
+  reason: string;
+  year?: number | null;
+  posterPath?: string | null;
+  trailerKey?: string | null;
+  tmdbRating?: string | null;
+}
+
 interface TasteInsights {
   summary: string;
   topThemes: string[];
   watchingStyle: string;
   moodProfile: string;
-  hiddenGem: string;
+  // string = legacy cached shape from before the actionable-card change
+  hiddenGem: HiddenGem | string | null;
 }
 
 export function PreferencesView() {
@@ -166,15 +180,23 @@ export function PreferencesView() {
                 </div>
 
                 {/* Hidden Gem Suggestion */}
-                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-                  <div className="flex items-start gap-2">
-                    <Lightbulb className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                    <div>
-                      <span className="text-xs font-medium text-primary">Hidden Gem</span>
-                      <p className="text-sm mt-1">{insights.hiddenGem}</p>
+                {insights.hiddenGem &&
+                  (typeof insights.hiddenGem === "string" ? (
+                    <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                      <div className="flex items-start gap-2">
+                        <Lightbulb className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-xs font-medium text-primary">Hidden Gem</span>
+                          <p className="text-sm mt-1">{insights.hiddenGem}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  ) : (
+                    <HiddenGemCard
+                      gem={insights.hiddenGem}
+                      onActioned={() => refetchInsights()}
+                    />
+                  ))}
               </>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -327,6 +349,168 @@ export function PreferencesView() {
         </section>
       )}
 
+    </div>
+  );
+}
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
+
+function HiddenGemCard({
+  gem,
+  onActioned,
+}: {
+  gem: HiddenGem;
+  onActioned: () => void;
+}) {
+  const { user } = useUser();
+  const queryClient = useQueryClient();
+  const [busy, setBusy] = useState<null | "watchlist" | "watched" | "dismiss">(null);
+  const [done, setDone] = useState<null | "watchlist" | "watched" | "dismiss">(null);
+  const [trailerOpen, setTrailerOpen] = useState(false);
+
+  const doAction = async (kind: "watchlist" | "watched" | "dismiss") => {
+    if (!user || busy || done) return;
+    setBusy(kind);
+    try {
+      if (kind === "watchlist") {
+        await apiRequest("POST", `/api/users/${user.id}/watchlist`, {
+          title: gem.title,
+          mediaType: gem.mediaType,
+          year: gem.year ?? null,
+          recommendationReason: gem.reason,
+        });
+      } else if (kind === "watched") {
+        await apiRequest("POST", `/api/users/${user.id}/history`, {
+          title: gem.title,
+          mediaType: gem.mediaType,
+          year: gem.year ?? null,
+        });
+      } else {
+        await apiRequest("POST", `/api/users/${user.id}/rejected`, {
+          title: gem.title,
+          mediaType: gem.mediaType,
+          year: gem.year ?? null,
+          reason: "Not interested",
+        });
+      }
+      setDone(kind);
+      queryClient.invalidateQueries({ queryKey: [`/api/users/${user.id}/watchlist`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/users/${user.id}/history`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/users/${user.id}/rejected`] });
+      // Fetch a fresh gem once this one has been dealt with
+      setTimeout(onActioned, 900);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const posterUrl = gem.posterPath ? `${TMDB_IMAGE_BASE}/w300${gem.posterPath}` : null;
+
+  return (
+    <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+      <div className="flex items-center gap-2 mb-2">
+        <Lightbulb className="w-4 h-4 text-primary shrink-0" />
+        <span className="text-xs font-medium text-primary">Hidden Gem</span>
+      </div>
+      <div className="flex gap-3">
+        {posterUrl ? (
+          <img
+            src={posterUrl}
+            alt={gem.title}
+            className="w-[72px] h-[108px] rounded-lg object-cover shrink-0"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-[72px] h-[108px] rounded-lg bg-muted flex items-center justify-center shrink-0">
+            {gem.mediaType === "film" ? (
+              <Film className="w-6 h-6 text-muted-foreground" />
+            ) : (
+              <Tv className="w-6 h-6 text-muted-foreground" />
+            )}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <h4 className="font-semibold text-base leading-snug mb-1">{gem.title}</h4>
+          <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground mb-2">
+            {gem.year && <span>{gem.year}</span>}
+            <span className="opacity-40">·</span>
+            <span className="capitalize">{gem.mediaType}</span>
+            {gem.tmdbRating && (
+              <>
+                <span className="opacity-40">·</span>
+                <span className="px-1.5 py-0.5 rounded bg-[#fec666]/20 text-[#fec666] font-medium">
+                  {gem.tmdbRating}
+                </span>
+              </>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-2">{gem.reason}</p>
+          {gem.trailerKey && (
+            <button
+              onClick={() => setTrailerOpen(true)}
+              className="inline-flex items-center gap-1 text-xs text-accent hover:underline mb-2"
+            >
+              <Play className="w-2.5 h-2.5" /> Trailer
+            </button>
+          )}
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => doAction("watchlist")}
+              disabled={!!busy || !!done}
+              className={`inline-flex items-center gap-1 text-xs ${
+                done === "watchlist"
+                  ? "text-[#93b6ee]"
+                  : "text-accent hover:underline disabled:opacity-40"
+              }`}
+            >
+              {busy === "watchlist" ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : done === "watchlist" ? (
+                <>Added</>
+              ) : (
+                <><Plus className="w-3 h-3" /> Watchlist</>
+              )}
+            </button>
+            <button
+              onClick={() => doAction("watched")}
+              disabled={!!busy || !!done}
+              className={`inline-flex items-center gap-1 text-xs ${
+                done === "watched"
+                  ? "text-[#93b6ee]"
+                  : "text-muted-foreground hover:text-foreground disabled:opacity-40"
+              }`}
+            >
+              {busy === "watched" ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : done === "watched" ? (
+                <>Watched</>
+              ) : (
+                <><Eye className="w-3 h-3" /> Watched</>
+              )}
+            </button>
+            <button
+              onClick={() => doAction("dismiss")}
+              disabled={!!busy || !!done}
+              aria-label="Dismiss"
+              className={`inline-flex items-center text-muted-foreground hover:text-foreground disabled:opacity-40 ${
+                done === "dismiss" ? "text-[#93b6ee]" : ""
+              }`}
+            >
+              {busy === "dismiss" ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <X className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+      {trailerOpen && gem.trailerKey && (
+        <TrailerPlayer
+          trailerKey={gem.trailerKey}
+          title={gem.title}
+          onClose={() => setTrailerOpen(false)}
+        />
+      )}
     </div>
   );
 }

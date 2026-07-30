@@ -239,16 +239,30 @@ Respond with JSON:
   return JSON.parse(content);
 }
 
+export interface HiddenGem {
+  title: string;
+  mediaType: "film" | "tv";
+  reason: string;
+  // Enriched server-side from TMDB before returning to the client
+  year?: number | null;
+  posterPath?: string | null;
+  trailerKey?: string | null;
+  tmdbRating?: string | null;
+}
+
 export interface TasteInsights {
   summary: string;
   topThemes: string[];
   watchingStyle: string;
   moodProfile: string;
-  hiddenGem: string;
+  hiddenGem: HiddenGem | null;
 }
 
-export async function generateTasteInsights(profile: UserProfile): Promise<TasteInsights> {
-  const profileSummary = buildInsightsPrompt(profile);
+export async function generateTasteInsights(
+  profile: UserProfile,
+  excludeTitles: string[] = []
+): Promise<TasteInsights> {
+  const profileSummary = buildInsightsPrompt(profile, excludeTitles);
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -263,10 +277,11 @@ Respond with JSON in this exact format:
   "topThemes": ["theme1", "theme2", "theme3"],
   "watchingStyle": "One sentence describing their watching habits (e.g., 'You gravitate towards complex character studies' or 'You enjoy binge-worthy series with twists')",
   "moodProfile": "One sentence about the emotional experiences they seek (e.g., 'You like to be intellectually challenged' or 'You prefer feel-good escapism')",
-  "hiddenGem": "Based on their taste, suggest one lesser-known title they might love with a brief reason"
+  "hiddenGem": { "title": "Exact title of one lesser-known film or series they might love", "mediaType": "film" or "tv", "reason": "One sentence on why it fits their taste" }
 }
 
-Be specific and insightful, not generic. Reference actual titles from their profile when relevant.`,
+The hiddenGem must be a real, well-regarded title, and must NOT be any title listed under DO NOT SUGGEST.
+Be specific and insightful, not generic. Reference actual titles from their profile when relevant. Do not use em dashes.`,
       },
       {
         role: "user",
@@ -282,10 +297,20 @@ Be specific and insightful, not generic. Reference actual titles from their prof
     throw new Error("No response from AI");
   }
 
-  return JSON.parse(content);
+  const parsed = JSON.parse(content);
+  // Tolerate the old string shape and malformed gems — drop rather than break
+  if (
+    !parsed.hiddenGem ||
+    typeof parsed.hiddenGem !== "object" ||
+    typeof parsed.hiddenGem.title !== "string" ||
+    !["film", "tv"].includes(parsed.hiddenGem.mediaType)
+  ) {
+    parsed.hiddenGem = null;
+  }
+  return parsed;
 }
 
-function buildInsightsPrompt(profile: UserProfile): string {
+function buildInsightsPrompt(profile: UserProfile, excludeTitles: string[] = []): string {
   const sections: string[] = [];
 
   if (profile.favourites.length > 0) {
@@ -316,6 +341,18 @@ function buildInsightsPrompt(profile: UserProfile): string {
   }
 
   sections.push(`STATS: ${profile.favourites.length} favourites, ${profile.history.length} watched, ${profile.rejected.length} rejected`);
+
+  const exclude = [
+    ...new Set([
+      ...profile.favourites.map((f) => f.title),
+      ...profile.history.map((h) => h.title),
+      ...profile.rejected.map((r) => r.title),
+      ...excludeTitles,
+    ]),
+  ];
+  if (exclude.length > 0) {
+    sections.push(`DO NOT SUGGEST (already seen, saved, or rejected): ${exclude.join(", ")}`);
+  }
 
   return sections.join("\n");
 }
