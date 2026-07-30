@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { storage } from "./storage";
-import { generateRecommendations, parseNaturalLanguageRequest, generateTasteInsights, normaliseTitle } from "./ai";
+import { generateRecommendations, parseNaturalLanguageRequest, generateTasteInsights, normaliseTitle, normaliseTitleExact } from "./ai";
 import {
   runDailyNewReleases,
   scoreNewReleasesForUser,
@@ -382,21 +382,46 @@ export function registerRoutes(app: Express) {
         req.body.request
       );
 
-      // Enrich with TMDB posters + trailers
-      const enriched = await Promise.all(
-        recommendations.map(async (rec) => {
-          try {
-            const tmdb = await searchTitle(rec.title, rec.year, rec.mediaType);
-            if (tmdb) {
+      // Hard exclusion in code — the prompt asks, this enforces. Rejected and
+      // watchlisted block all seasons; watched/favourites block exact titles.
+      const wlTitles = (await storage.getWatchlist(req.params.userId)).map((w) => w.title);
+      const hardExclude = new Set(
+        [...profile.rejected.map((r) => r.title), ...wlTitles].map(normaliseTitle)
+      );
+      const seenExact = new Set(
+        [...profile.history.map((h) => h.title), ...profile.favourites.map((f) => f.title)].map(
+          normaliseTitleExact
+        )
+      );
+      const fresh = recommendations.filter(
+        (rec) =>
+          !hardExclude.has(normaliseTitle(rec.title)) &&
+          !seenExact.has(normaliseTitleExact(rec.title))
+      );
+
+      // Verify against TMDB: drop hallucinated titles, replace the model's
+      // guessed scores with real TMDB data, and attach poster + trailer.
+      const enriched = (
+        await Promise.all(
+          fresh.map(async (rec) => {
+            try {
+              const tmdb = await searchTitle(rec.title, rec.year, rec.mediaType);
+              if (!tmdb) return null;
               rec.posterPath = tmdb.posterPath;
               rec.trailerUrl = tmdb.trailerKey
                 ? `https://www.youtube.com/watch?v=${tmdb.trailerKey}`
                 : null;
+              const basic = await fetchBasicInfo(tmdb.tmdbId, rec.mediaType);
+              if (basic.tmdbRating) rec.imdbScore = parseFloat(basic.tmdbRating);
+              if (basic.year) rec.year = basic.year;
+              rec.rottenTomatoesScore = null;
+              return rec;
+            } catch {
+              return null;
             }
-          } catch {}
-          return rec;
-        })
-      );
+          })
+        )
+      ).filter((r): r is NonNullable<typeof r> => r != null);
 
       // Log each recommendation
       for (const rec of enriched) {

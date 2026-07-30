@@ -269,25 +269,8 @@ export function PreferencesView() {
         )}
       </section>
 
-      {/* Genre Preferences */}
-      {likedGenres.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Star className="w-5 h-5 text-[#fec666] fill-[#fec666]" />
-            <h2 className="text-lg font-semibold">Favourite Genres</h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {likedGenres.map((genre) => (
-              <span
-                key={genre.id}
-                className="px-3 py-1.5 rounded-full bg-muted/50 border border-border text-sm"
-              >
-                {genre.genre}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Genre Preferences — tap to cycle love / neutral / avoid */}
+      <GenreTuner genres={genres || []} />
 
       {/* Mood Preferences */}
       {likedMoods.length > 0 && (
@@ -512,5 +495,88 @@ function HiddenGemCard({
         />
       )}
     </div>
+  );
+}
+
+// Canonical genre list shown in the tuner even if never rated — includes the
+// avoid-worthy ones (Soap, Reality, Animation) that onboarding never offered.
+const ALL_GENRES = [
+  "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
+  "Drama", "Fantasy", "History", "Horror", "Musical", "Mystery", "Reality",
+  "Romance", "Sci-Fi", "Soap", "Thriller", "War", "Western",
+];
+
+function GenreTuner({ genres }: { genres: GenrePreference[] }) {
+  const { user } = useUser();
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const ratingFor = (genre: string): number =>
+    genres.find((g) => g.genre === genre)?.rating ?? 3;
+
+  const stateFor = (rating: number): "love" | "neutral" | "avoid" =>
+    rating >= 4 ? "love" : rating <= 2 ? "avoid" : "neutral";
+
+  // love -> avoid -> neutral -> love
+  const nextRating = (rating: number): number => {
+    const s = stateFor(rating);
+    return s === "love" ? 1 : s === "avoid" ? 3 : 5;
+  };
+
+  const cycle = async (genre: string) => {
+    if (!user || saving) return;
+    setSaving(genre);
+    try {
+      await apiRequest("POST", `/api/users/${user.id}/genres`, {
+        genre,
+        rating: nextRating(ratingFor(genre)),
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/users/${user.id}/genres`] });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const extras = genres.filter((g) => !ALL_GENRES.includes(g.genre)).map((g) => g.genre);
+  const list = [...ALL_GENRES, ...extras];
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-1">
+        <Star className="w-5 h-5 text-[#fec666] fill-[#fec666]" />
+        <h2 className="text-lg font-semibold">Genres</h2>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">
+        Tap to cycle: love, avoid, neutral. Avoided genres are excluded from your picks.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {list.map((genre) => {
+          const state = stateFor(ratingFor(genre));
+          return (
+            <button
+              key={genre}
+              onClick={() => cycle(genre)}
+              disabled={saving === genre}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm transition-colors ${
+                state === "love"
+                  ? "bg-[#fec666]/20 border-[#fec666]/50 text-[#fec666]"
+                  : state === "avoid"
+                    ? "bg-destructive/15 border-destructive/40 text-destructive line-through"
+                    : "bg-muted/50 border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {saving === genre ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : state === "love" ? (
+                <Heart className="w-3 h-3 fill-current" />
+              ) : state === "avoid" ? (
+                <X className="w-3 h-3" />
+              ) : null}
+              {genre}
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }

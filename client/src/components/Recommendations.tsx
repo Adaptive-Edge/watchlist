@@ -368,7 +368,7 @@ function RecommendationCard({
                 <>
                   <span className="opacity-40">·</span>
                   <span className="px-1.5 py-0.5 rounded bg-[#fec666]/20 text-[#fec666] text-xs font-semibold">
-                    IMDb {recommendation.imdbScore.toFixed(1)}
+                    TMDB {recommendation.imdbScore.toFixed(1)}
                   </span>
                 </>
               )}

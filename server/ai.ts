@@ -58,7 +58,7 @@ export async function generateRecommendations(
   const prompt = buildPrompt(profile, userRequest);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4o",
     messages: [
       {
         role: "system",
@@ -87,7 +87,10 @@ For scores:
 - genres: Array of 1-3 genre strings (e.g. ["Drama", "Thriller", "Crime"]).
 
 Provide 3-5 recommendations. Be specific about why each recommendation fits the user's profile.
-Focus on lesser-known gems alongside popular choices. Consider both what they love AND what they've disliked to refine suggestions.`,
+Focus on lesser-known gems alongside popular choices. Consider both what they love AND what they've disliked to refine suggestions.
+Every title must be real — each is verified against TMDB and dropped if not found, so never invent titles.
+Never suggest anything the user has already watched, favourited, rejected, or watchlisted (these are listed in the prompt).
+Do not use em dashes.`,
       },
       {
         role: "user",
