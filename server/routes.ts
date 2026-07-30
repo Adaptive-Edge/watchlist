@@ -486,14 +486,14 @@ export function registerRoutes(app: Express) {
           ...watchlistTitles,
         ].map(normaliseTitle)
       );
-      const gemIsKnown = (i: { hiddenGem: { title: string } | null }) =>
-        i.hiddenGem != null && excludedGems.has(normaliseTitle(i.hiddenGem.title));
-
-      let insights = await generateTasteInsights(profileArg, watchlistTitles);
-      if (gemIsKnown(insights)) {
-        const retry = await generateTasteInsights(profileArg, watchlistTitles);
-        insights = gemIsKnown(retry) ? { ...retry, hiddenGem: null } : retry;
-      }
+      const insights = await generateTasteInsights(profileArg, watchlistTitles);
+      // Pick the first candidate the user doesn't already know; the model
+      // returns 3 so a single sloppy suggestion doesn't blank the section.
+      insights.hiddenGem =
+        (insights.hiddenGemCandidates || []).find(
+          (g) => !excludedGems.has(normaliseTitle(g.title))
+        ) || null;
+      delete insights.hiddenGemCandidates;
 
       // Enrich the hidden gem with TMDB data so the client can render it as
       // an actionable card (poster, trailer, year, rating)

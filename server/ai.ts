@@ -259,6 +259,9 @@ export interface TasteInsights {
   watchingStyle: string;
   moodProfile: string;
   hiddenGem: HiddenGem | null;
+  // Raw candidates from the model — the insights route picks the first
+  // unseen one into hiddenGem and strips this before responding.
+  hiddenGemCandidates?: HiddenGem[];
 }
 
 export async function generateTasteInsights(
@@ -268,7 +271,7 @@ export async function generateTasteInsights(
   const profileSummary = buildInsightsPrompt(profile, excludeTitles);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-4o",
     messages: [
       {
         role: "system",
@@ -280,10 +283,10 @@ Respond with JSON in this exact format:
   "topThemes": ["theme1", "theme2", "theme3"],
   "watchingStyle": "One sentence describing their watching habits (e.g., 'You gravitate towards complex character studies' or 'You enjoy binge-worthy series with twists')",
   "moodProfile": "One sentence about the emotional experiences they seek (e.g., 'You like to be intellectually challenged' or 'You prefer feel-good escapism')",
-  "hiddenGem": { "title": "Exact title of one lesser-known film or series they might love", "mediaType": "film" or "tv", "reason": "One sentence on why it fits their taste" }
+  "hiddenGems": [ { "title": "Exact title of a lesser-known film or series they might love", "mediaType": "film" or "tv", "reason": "One sentence on why it fits their taste" } ]
 }
 
-The hiddenGem must be a real, well-regarded title, and must NOT be any title listed under DO NOT SUGGEST.
+Provide exactly 3 distinct hiddenGems candidates, best match first. Each must be a real, well-regarded title, and must NOT be any title listed under DO NOT SUGGEST (this is critical - double-check each candidate against that list).
 Be specific and insightful, not generic. Reference actual titles from their profile when relevant. Do not use em dashes.`,
       },
       {
@@ -301,15 +304,22 @@ Be specific and insightful, not generic. Reference actual titles from their prof
   }
 
   const parsed = JSON.parse(content);
-  // Tolerate the old string shape and malformed gems — drop rather than break
-  if (
-    !parsed.hiddenGem ||
-    typeof parsed.hiddenGem !== "object" ||
-    typeof parsed.hiddenGem.title !== "string" ||
-    !["film", "tv"].includes(parsed.hiddenGem.mediaType)
-  ) {
-    parsed.hiddenGem = null;
-  }
+  // Normalise to a validated candidate list; the route picks the first one
+  // the user hasn't already seen and exposes it as hiddenGem.
+  const rawCandidates = Array.isArray(parsed.hiddenGems)
+    ? parsed.hiddenGems
+    : parsed.hiddenGem
+      ? [parsed.hiddenGem]
+      : [];
+  parsed.hiddenGemCandidates = rawCandidates.filter(
+    (g: any) =>
+      g &&
+      typeof g === "object" &&
+      typeof g.title === "string" &&
+      ["film", "tv"].includes(g.mediaType)
+  );
+  parsed.hiddenGem = null;
+  delete parsed.hiddenGems;
   return parsed;
 }
 
