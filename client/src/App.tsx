@@ -6,12 +6,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useTVNavigation } from "@/hooks/use-tv-navigation";
 import Home from "@/pages/home";
+import Picks from "@/pages/picks";
 import NotFound from "@/pages/not-found";
 
 function AppRouter() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/picks" component={Picks} />
       <Route component={NotFound} />
     </Switch>
   );

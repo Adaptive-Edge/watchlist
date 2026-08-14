@@ -49,6 +49,13 @@ import {
 
 const SALT_ROUNDS = 10;
 
+// Prefer the explicit display name; fall back to a tidied email prefix.
+function displayNameFor(displayName: string | null, email: string | null): string {
+  if (displayName) return displayName;
+  const prefix = (email || "").split("@")[0].split(/[._]/)[0];
+  return prefix ? prefix.charAt(0).toUpperCase() + prefix.slice(1) : "Someone";
+}
+
 export const storage = {
   // Users
   async createUser(): Promise<User> {
@@ -207,31 +214,40 @@ export const storage = {
       .orderBy(desc(watchHistory.watchedDate));
   },
 
+  // A "loved" watch is the strongest taste signal we get — promote it to
+  // favourites so the Favourites tab and the taste profile keep learning.
+  async promoteLovedToFavourites(
+    userId: string,
+    title: string,
+    mediaType: "film" | "tv" | null | undefined,
+    year: number | null | undefined
+  ): Promise<void> {
+    try {
+      const existing = await this.getFavouriteTitles(userId);
+      const already = existing.some(
+        (f) => f.title.toLowerCase() === title.toLowerCase()
+      );
+      if (!already) {
+        await this.addFavouriteTitle({
+          userId,
+          title,
+          mediaType: mediaType || "film",
+          year: year ?? null,
+          reason: "Loved it when watched",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to promote loved watch to favourites:", err);
+    }
+  },
+
   async addToWatchHistory(data: InsertWatchHistoryItem): Promise<WatchHistoryItem> {
     const id = randomUUID();
     await db.insert(watchHistory).values({ ...data, id });
     const [created] = await db.select().from(watchHistory).where(eq(watchHistory.id, id));
 
-    // A "loved" watch is the strongest taste signal we get — promote it to
-    // favourites so the Favourites tab and the taste profile keep learning.
     if (data.rating === "loved" && data.userId && data.title) {
-      try {
-        const existing = await this.getFavouriteTitles(data.userId);
-        const already = existing.some(
-          (f) => f.title.toLowerCase() === data.title!.toLowerCase()
-        );
-        if (!already) {
-          await this.addFavouriteTitle({
-            userId: data.userId,
-            title: data.title,
-            mediaType: data.mediaType || "film",
-            year: data.year ?? null,
-            reason: "Loved it when watched",
-          });
-        }
-      } catch (err) {
-        console.error("Failed to promote loved watch to favourites:", err);
-      }
+      await this.promoteLovedToFavourites(data.userId, data.title, data.mediaType, data.year);
     }
 
     return created;
@@ -239,6 +255,97 @@ export const storage = {
 
   async updateWatchHistoryRating(id: string, rating: "loved" | "ok" | "disliked"): Promise<void> {
     await db.update(watchHistory).set({ rating }).where(eq(watchHistory.id, id));
+  },
+
+  async findWatchHistoryByTitle(
+    userId: string,
+    title: string,
+    mediaType: "film" | "tv"
+  ): Promise<WatchHistoryItem | undefined> {
+    const rows = await db
+      .select()
+      .from(watchHistory)
+      .where(and(eq(watchHistory.userId, userId), eq(watchHistory.mediaType, mediaType)));
+    return rows.find((r) => r.title.toLowerCase() === title.toLowerCase());
+  },
+
+  async updateWatchHistoryReview(
+    id: string,
+    data: {
+      rating?: "loved" | "ok" | "disliked" | null;
+      recommend?: "yes" | "maybe" | "no" | null;
+      notes?: string | null;
+    }
+  ): Promise<WatchHistoryItem | undefined> {
+    const set: Record<string, unknown> = {};
+    if ("rating" in data) set.rating = data.rating;
+    if ("recommend" in data) set.recommend = data.recommend;
+    if ("notes" in data) set.notes = data.notes;
+    if (Object.keys(set).length > 0) {
+      await db.update(watchHistory).set(set).where(eq(watchHistory.id, id));
+    }
+    const [updated] = await db.select().from(watchHistory).where(eq(watchHistory.id, id));
+
+    if (updated && data.rating === "loved") {
+      await this.promoteLovedToFavourites(
+        updated.userId,
+        updated.title,
+        updated.mediaType,
+        updated.year
+      );
+    }
+
+    return updated;
+  },
+
+  // Every user's reviewed titles (rating, recommend, or notes set), with the
+  // reviewer's name — powers the shared household view.
+  async getAllReviews(): Promise<
+    Array<{
+      id: string;
+      userId: string;
+      reviewerName: string;
+      title: string;
+      mediaType: "film" | "tv";
+      year: number | null;
+      rating: "loved" | "ok" | "disliked" | null;
+      recommend: "yes" | "maybe" | "no" | null;
+      notes: string | null;
+      watchedDate: Date | null;
+      updatedAt: Date | null;
+    }>
+  > {
+    const rows = await db
+      .select({
+        id: watchHistory.id,
+        userId: watchHistory.userId,
+        email: users.email,
+        displayName: users.displayName,
+        title: watchHistory.title,
+        mediaType: watchHistory.mediaType,
+        year: watchHistory.year,
+        rating: watchHistory.rating,
+        recommend: watchHistory.recommend,
+        notes: watchHistory.notes,
+        watchedDate: watchHistory.watchedDate,
+        updatedAt: watchHistory.updatedAt,
+      })
+      .from(watchHistory)
+      .innerJoin(users, eq(watchHistory.userId, users.id))
+      .orderBy(desc(watchHistory.updatedAt));
+
+    return rows
+      .filter((r) => r.rating || r.recommend || (r.notes && r.notes.trim().length > 0))
+      .map(({ email, displayName, ...r }) => ({
+        ...r,
+        reviewerName: displayNameFor(displayName, email),
+      }));
+  },
+
+  // Titles either of us would recommend — powers the public picks page.
+  async getPublicPicks() {
+    const all = await this.getAllReviews();
+    return all.filter((r) => r.recommend === "yes" || r.recommend === "maybe");
   },
 
   // Rejected Items

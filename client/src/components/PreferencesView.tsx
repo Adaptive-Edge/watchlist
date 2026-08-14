@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { useUser } from "@/hooks/use-user";
 import { apiRequest } from "@/lib/queryClient";
 import { TrailerPlayer } from "@/components/TrailerPlayer";
-import { Film, Tv, Heart, Loader2, Star, Smile, User, Video, Brain, Sparkles, RefreshCw, Lightbulb, BarChart3, Plus, Eye, X, Play } from "lucide-react";
+import { ReviewDialog, type ReviewTarget } from "@/components/ReviewDialog";
+import type { HouseholdReview } from "@/components/HistoryView";
+import { Film, Tv, Heart, Loader2, Star, Smile, User, Video, Brain, Sparkles, RefreshCw, Lightbulb, BarChart3, Plus, Eye, X, Play, PenLine } from "lucide-react";
 
 interface FavouriteTitle {
   id: string;
@@ -69,9 +71,15 @@ interface TasteInsights {
 
 export function PreferencesView() {
   const { user } = useUser();
+  const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
 
   const { data: favourites, isLoading: loadingFavourites } = useQuery<FavouriteTitle[]>({
     queryKey: [`/api/users/${user?.id}/favourites`],
+    enabled: !!user,
+  });
+
+  const { data: allReviews } = useQuery<HouseholdReview[]>({
+    queryKey: ["/api/reviews"],
     enabled: !!user,
   });
 
@@ -247,27 +255,59 @@ export function PreferencesView() {
 
         {favourites && favourites.length > 0 ? (
           <div className="flex flex-wrap gap-2">
-            {favourites.map((fav) => (
-              <div
-                key={fav.id}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border"
-              >
-                {fav.mediaType === "film" ? (
-                  <Film className="w-4 h-4 text-accent" />
-                ) : (
-                  <Tv className="w-4 h-4 text-primary" />
-                )}
-                <span className="text-sm font-medium">{fav.title}</span>
-                {fav.year && (
-                  <span className="text-xs text-muted-foreground">({fav.year})</span>
-                )}
-              </div>
-            ))}
+            {favourites.map((fav) => {
+              const myReview = (allReviews || []).find(
+                (r) =>
+                  r.userId === user?.id &&
+                  r.mediaType === fav.mediaType &&
+                  r.title.toLowerCase() === fav.title.toLowerCase()
+              );
+              return (
+                <div
+                  key={fav.id}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border"
+                >
+                  {fav.mediaType === "film" ? (
+                    <Film className="w-4 h-4 text-accent" />
+                  ) : (
+                    <Tv className="w-4 h-4 text-primary" />
+                  )}
+                  <span className="text-sm font-medium">{fav.title}</span>
+                  {fav.year && (
+                    <span className="text-xs text-muted-foreground">({fav.year})</span>
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`Review ${fav.title}`}
+                    onClick={() =>
+                      setReviewTarget({
+                        historyId: myReview?.id,
+                        title: fav.title,
+                        mediaType: fav.mediaType,
+                        year: fav.year,
+                        rating: myReview?.rating ?? null,
+                        recommend: myReview?.recommend ?? null,
+                        notes: myReview?.notes ?? null,
+                      })
+                    }
+                    className={`p-1 rounded-md transition-colors ${
+                      myReview
+                        ? "text-primary hover:bg-muted"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <PenLine className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">No favourites added yet</p>
         )}
       </section>
+
+      <ReviewDialog target={reviewTarget} onClose={() => setReviewTarget(null)} />
 
       {/* Genre Preferences — tap to cycle love / neutral / avoid */}
       <GenreTuner genres={genres || []} />

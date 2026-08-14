@@ -5,6 +5,7 @@ import { sql, relations } from "drizzle-orm";
 export const users = mysqlTable("users", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`(UUID())`),
   email: varchar("email", { length: 255 }).unique(),
+  displayName: varchar("display_name", { length: 100 }),
   passwordHash: varchar("password_hash", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
   onboardingComplete: int("onboarding_complete").default(0),
@@ -67,6 +68,7 @@ export const watchHistory = mysqlTable("watch_history", {
   year: int("year"),
   watchedDate: timestamp("watched_date").defaultNow(),
   rating: mysqlEnum("rating", ["loved", "ok", "disliked"]),
+  recommend: mysqlEnum("recommend", ["yes", "maybe", "no"]),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),

@@ -264,6 +264,93 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // === Reviews ===
+
+  // Update the review fields (rating / recommend / notes) on a history item.
+  app.patch("/api/history/:id/review", async (req, res) => {
+    try {
+      const { rating, recommend, notes } = req.body;
+      const updated = await storage.updateWatchHistoryReview(req.params.id, {
+        ...(rating !== undefined ? { rating } : {}),
+        ...(recommend !== undefined ? { recommend } : {}),
+        ...(notes !== undefined ? { notes } : {}),
+      });
+      if (!updated) return res.status(404).json({ error: "History item not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating review:", error);
+      res.status(500).json({ error: "Failed to update review" });
+    }
+  });
+
+  // Review by title — used from Favourites, where the title may not be in
+  // watch history yet. Finds the matching history row or creates one.
+  app.post("/api/users/:userId/reviews", async (req, res) => {
+    try {
+      const { title, mediaType, year, rating, recommend, notes } = req.body;
+      if (!title || !mediaType) {
+        return res.status(400).json({ error: "title and mediaType required" });
+      }
+
+      const existing = await storage.findWatchHistoryByTitle(
+        req.params.userId,
+        title,
+        mediaType
+      );
+
+      if (existing) {
+        const updated = await storage.updateWatchHistoryReview(existing.id, {
+          ...(rating !== undefined ? { rating } : {}),
+          ...(recommend !== undefined ? { recommend } : {}),
+          ...(notes !== undefined ? { notes } : {}),
+        });
+        return res.json(updated);
+      }
+
+      const created = await storage.addToWatchHistory({
+        userId: req.params.userId,
+        title,
+        mediaType,
+        year: year ?? null,
+        rating: rating ?? null,
+        notes: notes ?? null,
+      });
+      const withRecommend =
+        recommend !== undefined && recommend !== null
+          ? await storage.updateWatchHistoryReview(created.id, { recommend })
+          : created;
+      res.status(201).json(withRecommend);
+    } catch (error) {
+      console.error("Error saving review:", error);
+      res.status(500).json({ error: "Failed to save review" });
+    }
+  });
+
+  // All reviews across the household, for the shared view. Requires login.
+  app.get("/api/reviews", async (req, res) => {
+    try {
+      if (!req.session.userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      const reviews = await storage.getAllReviews();
+      res.json(reviews);
+    } catch (error) {
+      console.error("Error fetching reviews:", error);
+      res.status(500).json({ error: "Failed to fetch reviews" });
+    }
+  });
+
+  // Public picks — no login. Read-only list of titles we'd recommend.
+  app.get("/api/public/picks", async (_req, res) => {
+    try {
+      const picks = await storage.getPublicPicks();
+      res.json(picks);
+    } catch (error) {
+      console.error("Error fetching public picks:", error);
+      res.status(500).json({ error: "Failed to fetch picks" });
+    }
+  });
+
   // === Rejected Items ===
 
   app.get("/api/users/:userId/rejected", async (req, res) => {
