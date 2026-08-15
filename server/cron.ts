@@ -198,6 +198,9 @@ export async function scoreGuardianPicksForUser(
   const excludeTitles = [
     ...profile.rejected.map((r) => r.title),
     ...(await storage.getWatchlist(userId)).map((w) => w.title),
+    // Release scoring runs first in the same batch — exclude its picks so the
+    // two pipelines never produce two cards for the same title.
+    ...(await storage.getUserPicks(userId)).map((p) => p.release.title),
   ];
   const watchedTitles = profile.history.map((h) => h.title);
 

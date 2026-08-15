@@ -659,10 +659,25 @@ export function registerRoutes(app: Express) {
       const userId = req.params.userId;
       const mediaType = req.query.mediaType as "film" | "tv" | undefined;
       const provider = req.query.provider as string | undefined;
-      const [newPicks, guardianPicks] = await Promise.all([
+      const [newPicks, guardianPicks, wl, history, rejected] = await Promise.all([
         storage.getUserPicks(userId, mediaType),
         storage.getUserGuardianPicks(userId),
+        storage.getWatchlist(userId),
+        storage.getWatchHistory(userId),
+        storage.getRejectedItems(userId),
       ]);
+
+      // Read-time safety net: an actioned title must never show as a pick,
+      // whatever pipeline it arrived through or when it was scored. Matches
+      // the scorer's semantics: watchlist/rejected block all seasons, watched
+      // blocks only the exact title so new seasons still surface.
+      const blockedAllSeasons = new Set(
+        [...wl, ...rejected].map((t) => normaliseTitle(t.title))
+      );
+      const watchedExact = new Set(history.map((t) => normaliseTitleExact(t.title)));
+      const isActioned = (title: string) =>
+        blockedAllSeasons.has(normaliseTitle(title)) ||
+        watchedExact.has(normaliseTitleExact(title));
 
       const filterByProvider = (streamingUk: unknown) => {
         if (!provider) return true;
@@ -684,6 +699,7 @@ export function registerRoutes(app: Express) {
       for (const p of newPicks) {
         if (mediaType && p.release.mediaType !== mediaType) continue;
         if (!filterByProvider(p.release.streamingUk)) continue;
+        if ((p.status || "new") === "new" && isActioned(p.release.title)) continue;
         unified.push({
           id: p.id,
           source: "new_release",
@@ -696,6 +712,7 @@ export function registerRoutes(app: Express) {
       for (const p of guardianPicks) {
         if (mediaType && p.review.mediaType !== mediaType) continue;
         if (!filterByProvider(p.review.streamingUk)) continue;
+        if ((p.status || "new") === "new" && isActioned(p.review.title)) continue;
         unified.push({
           id: p.id,
           source: "guardian_review",
@@ -762,6 +779,14 @@ export function registerRoutes(app: Express) {
           });
           await storage.updateUserGuardianPickStatus(pickId, "rejected");
         }
+        // Propagate to same-titled picks in the other pipeline — both scorers
+        // can pick the same title in one batch, and one lingering "new"
+        // sibling puts an already-actioned title back in the feed.
+        await storage.updatePickStatusByTitle(
+          userId,
+          r.title,
+          action === "add_to_watchlist" ? "added_to_watchlist" : action
+        );
         return res.json({ success: true, source: "guardian_review" });
       }
 
@@ -796,6 +821,11 @@ export function registerRoutes(app: Express) {
           });
           await storage.updateUserPickStatus(pickId, "rejected");
         }
+        await storage.updatePickStatusByTitle(
+          userId,
+          r.title,
+          action === "add_to_watchlist" ? "added_to_watchlist" : action
+        );
         return res.json({ success: true, source: "new_release" });
       }
 
